@@ -1,0 +1,11 @@
+.DS_Store
+.env
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+data/
+config/app.yaml
+

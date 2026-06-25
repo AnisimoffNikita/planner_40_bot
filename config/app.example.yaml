@@ -1,0 +1,35 @@
+telegram:
+  token: "${TELEGRAM_BOT_TOKEN}"
+  admin_user_id: 123456789
+
+app:
+  timezone: "Europe/Moscow"
+  database_path: "../data/meeting_bot.sqlite3"
+  log_level: "INFO"
+  default_parse_mode: "HTML"
+  debug: false
+
+meeting:
+  week_starts_on: 1
+  service_day: 7
+  archive_after_service: true
+
+notifications:
+  enabled: true
+  remind_before_hours: 3
+  scheduler_interval_seconds: 60
+
+llm:
+  enabled: true
+  base_url: "https://api.aitunnel.ru/v1/"
+  api_key: "${AITUNNEL_API_KEY}"
+  text_model: "gpt-4o"
+  audio_model: "whisper-large-v3-turbo"
+  request_timeout_seconds: 60
+  max_retries: 3
+  max_voice_bytes: 26214400
+
+pdf:
+  font_path: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+  output_dir: "../data/reports"
+

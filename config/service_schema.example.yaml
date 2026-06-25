@@ -1,0 +1,33 @@
+version: "1.0"
+title: "Пример карточки собрания"
+blocks:
+  - id: main_speaker
+    title: "Главный спикер"
+    multiple: false
+    fields:
+      name:
+        label: "Имя"
+        allowed_values: ["Имя Фамилия"]
+        ready_if: ["Не пусто"]
+        deadline:
+          day: 3
+          hour: 10
+          minute: 0
+  - id: announcements
+    title: "Объявления"
+    multiple: true
+    fields:
+      topic:
+        label: "Тема"
+        allowed_values: ["Любая строка"]
+        ready_if: ["Не пусто"]
+        deadline:
+          day: 4
+          hour: 17
+          minute: 0
+      notes:
+        label: "Пометки"
+        allowed_values: ["Любое значение"]
+        ready_if: ["Любое значение или его отсутствие"]
+        deadline: null
+

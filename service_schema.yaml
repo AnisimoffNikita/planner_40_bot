@@ -1,0 +1,1281 @@
+version: '4.0'
+title: Список пунктов для проверки к собранию 4.0
+blocks:
+- id: main_speaker
+  title: Главный спикер
+  multiple: false
+  fields:
+    name:
+      label: Имя
+      allowed_values:
+      - Имя Фамилия
+      - Телеграмм контакт
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    credentials_exists:
+      label: Регалии есть
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    business_card_slide_exists:
+      label: Слайд визитки есть
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    microphone:
+      label: Какой микрофон
+      allowed_values:
+      - Хедсет
+      - Хенд
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    lectern:
+      label: Какая кафедра
+      allowed_values:
+      - Стеклянная
+      - Стойка плоская
+      - Для планшета
+      - Барный стул
+      - Стеклянная низкая
+      - Без кафедры
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    keys_needed_when:
+      label: Когда нужны клавиши
+      allowed_values:
+      - За <N> минут
+      - На <N> слайде
+      - На фразе <фраза>
+      - Нет
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    song_after_sermon:
+      label: Песня после проповеди
+      allowed_values:
+      - <Название песни>
+      - В процессе
+      - Не требуется
+      ready_if:
+      - <Название песни>
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    outline_exists:
+      label: Есть ли конспект
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 5
+        hour: 21
+        minute: 0
+    slides_ready:
+      label: Готовы ли слайды
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 7
+        hour: 12
+        minute: 0
+    slides_approved_by_speaker:
+      label: Слайды согласованы со спикером
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    props:
+      label: Реквизит
+      allowed_values:
+      - <Название>
+      - Не требуется
+      ready_if:
+      - <Название>
+      - Не требуется
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    props_found:
+      label: Реквизит найден
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    special_light_needed:
+      label: Специальный свет на проповеди нужен
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    sermon_video_ready:
+      label: Видео во время проповеди готово
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    sermon_performance:
+      label: Перформанс во время проповеди
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    sermon_music_ready:
+      label: Музыка во время проповеди готово
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    interpreter_needed:
+      label: Переводчик нужен
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    notes:
+      label: Иные пометки
+      allowed_values:
+      - Любое значение
+      ready_if:
+      - Любое значение или его отсутствие
+      deadline: null
+- id: small_speaker
+  title: Малый спикер
+  multiple: false
+  fields:
+    name:
+      label: Имя
+      allowed_values:
+      - Имя Фамилия
+      - Телеграмм контакт
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    experienced:
+      label: Опытный
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    credentials_exists:
+      label: Регалии есть
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    business_card_slide_exists:
+      label: Слайд визитки есть
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    entrance_after_worship_approved:
+      label: Выход после прославления согласован
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    prayer_topic:
+      label: Тема молитвы
+      allowed_values:
+      - Строка
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 20
+        minute: 0
+    story_found:
+      label: История найдена
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    repentance_word_approved_by_pastor:
+      label: Слово на покаяние одобрено пастором
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    repentance_props:
+      label: Реквизит на покаяние
+      allowed_values:
+      - <Название>
+      - Не требуется
+      ready_if:
+      - <Название>
+      - Не требуется
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    repentance_props_found:
+      label: Реквизит на покаяние найден
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    repentance_slides_approved:
+      label: Слайды на покаяние согласованы
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    offering_word_approved_by_pastor:
+      label: Слово на пожертвование одобрено пастором
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    offering_props:
+      label: Реквизит на пожертвование
+      allowed_values:
+      - <Название>
+      - Не требуется
+      ready_if:
+      - <Название>
+      - Не требуется
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    offering_props_found:
+      label: Реквизит на пожертвование найден
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    offering_slides_approved:
+      label: Слайды на пожертвование согласованы
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    speaker_informed_about_service_flow:
+      label: Спикер осведомлен о ходе собрания
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    notes:
+      label: Иные пометки
+      allowed_values:
+      - Любое значение
+      ready_if:
+      - Любое значение или его отсутствие
+      deadline: null
+- id: worship
+  title: Прославление
+  multiple: false
+  fields:
+    leader_name:
+      label: Имя лидера
+      allowed_values:
+      - Имя Фамилия
+      - Телеграмм контакт
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    opening_verses_sent:
+      label: Стихи открытия переданы
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    song_list_exists:
+      label: Список песен есть
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    keys_stay_duration:
+      label: Как долго остаются клавиши
+      allowed_values:
+      - Строка
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 7
+        hour: 10
+        minute: 0
+    keys_informed_when_to_enter_sermon:
+      label: Клавиши осведомлены когда выходить на проповеди
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    seat_reservation:
+      label: Бронь мест
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    notes:
+      label: Иные пометки
+      allowed_values:
+      - Любое значение
+      ready_if:
+      - Любое значение или его отсутствие
+      deadline: null
+- id: additional_blocks
+  title: Дополнительные блоки
+  multiple: true
+  fields:
+    block_type:
+      label: Тип блока
+      allowed_values:
+      - Ток-шоу
+      - Презентация
+      - Целевое пожертвование
+      - Выступление
+      - Благословение детей
+      - <Другое>
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    title:
+      label: Название
+      allowed_values:
+      - Строка
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    participants:
+      label: Участники
+      allowed_values:
+      - 'Список участников: строки с именем и контактом ТГ, если есть'
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    added_to_plan:
+      label: Блок добавлен в план
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    duration:
+      label: Время блока
+      allowed_values:
+      - мм:сс
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    microphone_count:
+      label: Число микрофонов
+      allowed_values:
+      - <N>
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    interpreter_needed:
+      label: Переводчик нужен
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    music:
+      label: Музыка
+      allowed_values:
+      - Клавиши
+      - Яндекс
+      - <Другое>
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    video:
+      label: Видео
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    slides_approved:
+      label: Слайды согласованы
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 17
+        minute: 0
+    qr_approved:
+      label: QR согласован
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    qr_checked:
+      label: QR проверен
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    props:
+      label: Реквизит
+      allowed_values:
+      - <Название>
+      - Не требуется
+      ready_if:
+      - <Название>
+      - Не требуется
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    props_found:
+      label: Реквизит найден
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    special_light:
+      label: Специальный свет
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    rehearsal_needed:
+      label: Нужен прогон
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    participants_informed:
+      label: Участники проинформированы
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 7
+        hour: 10
+        minute: 0
+    notes:
+      label: Иные пометки
+      allowed_values:
+      - Любое значение
+      ready_if:
+      - Любое значение или его отсутствие
+      deadline: null
+- id: announcements
+  title: Объявления
+  multiple: true
+  fields:
+    topic:
+      label: Тема
+      allowed_values:
+      - Любая строка
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    contact:
+      label: Контакт для связи
+      allowed_values:
+      - Имя Фамилия
+      - Телеграмм контакт
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    text:
+      label: Текст
+      allowed_values:
+      - Да
+      - Нет
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    slides_approved:
+      label: Слайды согласованы
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    qr_approved:
+      label: QR согласован
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    qr_checked:
+      label: QR проверен
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    notes:
+      label: Иные пометки
+      allowed_values:
+      - Любое значение
+      ready_if:
+      - Любое значение или его отсутствие
+      deadline: null
+- id: schedule
+  title: Расписание
+  multiple: false
+  fields:
+    slide_ready:
+      label: Слайд готов
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+- id: book
+  title: Книга
+  multiple: false
+  fields:
+    book_title:
+      label: Название книги
+      allowed_values:
+      - Название книги
+      - В процессе
+      - Нет
+      ready_if:
+      - Название книги
+      - Нет
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    slide:
+      label: Слайд
+      allowed_values:
+      - Да
+      - В процессе
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    checked_in_bookstore:
+      label: Книга проверена в книжном
+      allowed_values:
+      - Да
+      - В процессе
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    relevant_to_sermon:
+      label: Книга актуальна проповеди
+      allowed_values:
+      - Да
+      - В процессе
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+- id: teams
+  title: Команды
+  multiple: false
+  fields:
+    order_team:
+      label: Команда порядка
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    light:
+      label: Свет
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    sound_foh:
+      label: Звук FOH
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    sound_technician:
+      label: Звук Техник
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    sound_broadcast:
+      label: Звук Трансляция
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    screen_footage:
+      label: Экран Футажи
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    screen_content:
+      label: Экран Контент
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    admin:
+      label: Админ
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    admin_assistant:
+      label: Помощник админа
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    start:
+      label: Старт
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    prayer_team:
+      label: Молитвенное
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    lpr:
+      label: ЛПР
+      allowed_values:
+      - Контакт ТГ
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 6
+        hour: 10
+        minute: 0
+    notes:
+      label: Иные пометки
+      allowed_values:
+      - Любое значение
+      ready_if:
+      - Любое значение или его отсутствие
+      deadline: null
+- id: ozszh
+  title: ОЖСЖ
+  multiple: false
+  fields:
+    video_type:
+      label: Видео общее или 4.0
+      allowed_values:
+      - Общее
+      - '4.0'
+      - В процессе
+      - Нет
+      ready_if:
+      - Общее
+      - '4.0'
+      - Нет
+      deadline:
+        day: 7
+        hour: 10
+        minute: 0
+    added_to_plan:
+      label: Блок добавлен в план
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 7
+        hour: 10
+        minute: 0
+    duration:
+      label: Время блока
+      allowed_values:
+      - мм:сс
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 7
+        hour: 10
+        minute: 0
+    notes:
+      label: Иные пометки
+      allowed_values:
+      - Любое значение
+      ready_if:
+      - Любое значение или его отсутствие
+      deadline: null
+- id: communion
+  title: Причастие
+  multiple: false
+  fields:
+    exists:
+      label: Есть ли причастие
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    leader:
+      label: Кто проводит
+      allowed_values:
+      - Имя Фамилия
+      - Телеграмм контакт
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    added_to_plan:
+      label: Блок добавлен в план
+      allowed_values:
+      - Да
+      - В процессе
+      ready_if:
+      - Да
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    duration:
+      label: Время блока
+      allowed_values:
+      - мм:сс
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    notes:
+      label: Иные пометки
+      allowed_values:
+      - Любое значение
+      ready_if:
+      - Любое значение или его отсутствие
+      deadline: null
+- id: second_offering_before_sermon
+  title: Второе пожертвование перед проповедью
+  multiple: false
+  fields:
+    exists:
+      label: Есть ли второе пожертвование
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    leader:
+      label: Кто проводит
+      allowed_values:
+      - Имя Фамилия
+      - Телеграмм контакт
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    word_exists:
+      label: Есть ли слово для второго пожертвования
+      allowed_values:
+      - Да
+      - Нет
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    slides_approved:
+      label: Слайды согласованы
+      allowed_values:
+      - Да
+      - В процессе
+      - Не требуется
+      ready_if:
+      - Да
+      - Не требуется
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+- id: other
+  title: Другое
+  multiple: false
+  fields:
+    communion_cups_test_drive:
+      label: Тест-драйв домешек
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 4
+        hour: 17
+        minute: 0
+    confession_exists:
+      label: Есть ли исповедание
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    kids_working:
+      label: Работает ли kids
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 7
+        hour: 10
+        minute: 0
+    after_service_activity:
+      label: Движ после собрания
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 3
+        hour: 10
+        minute: 0
+    podium_needed:
+      label: Нужен ли подиум
+      allowed_values:
+      - Да
+      - В процессе
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 6
+        hour: 17
+        minute: 0
+    handout_material_exists:
+      label: Есть ли раздаточный материал
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 6
+        hour: 17
+        minute: 0
+    temperature_control_understood:
+      label: Есть ли понимание как регулировать температуру
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 7
+        hour: 10
+        minute: 0
+    planning_center_filled:
+      label: Заполнен ли planning center
+      allowed_values:
+      - Да
+      - Нет
+      ready_if:
+      - Да
+      - Нет
+      deadline:
+        day: 7
+        hour: 10
+        minute: 0
+    online_communication_camera:
+      label: Камера для общения с онлайном
+      allowed_values:
+      - Текст
+      ready_if:
+      - Не пусто
+      deadline:
+        day: 7
+        hour: 15
+        minute: 0
+    notes:
+      label: Иные пометки
+      allowed_values:
+      - Любое значение
+      ready_if:
+      - Любое значение или его отсутствие
+      deadline: null

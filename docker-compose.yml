@@ -1,0 +1,21 @@
+services:
+  meeting-bot:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    volumes:
+      - ./config/app.yaml:/app/config/app.yaml:ro
+      - ./service_schema.yaml:/app/config/service_schema.yaml:ro
+      - meeting-data:/app/data
+
+  meeting-bot-test:
+    profiles: ["test"]
+    build:
+      context: .
+      target: test
+    command: ["pytest"]
+
+volumes:
+  meeting-data:
+
