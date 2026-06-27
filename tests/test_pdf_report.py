@@ -11,6 +11,7 @@ async def test_pdf_smoke_with_cyrillic_and_repeatable_rules(card_service, app_co
     schema, fallback = await card_service.schema_for_card(card)
     status = card_service.status_blocks(card, schema)
     assert all(block.block_id != "announcements" for block in status)
+    assert all(block.block_id != "communion" for block in status)
 
     builder = PdfReportBuilder(app_config.pdf)
     path = builder.build(card, schema, status, schema_fallback=fallback)

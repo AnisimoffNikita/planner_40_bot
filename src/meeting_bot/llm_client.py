@@ -53,20 +53,22 @@ def build_system_prompt(
         "block_id, field_id или entry_id. Никогда не применяй изменения сам: для правок "
         "верни intent=propose_update и patches, приложение покажет preview и попросит "
         "подтверждение. "
-        "Поддержанные операции patches: set_field, clear_field, clear_block, add_entry, "
-        "delete_entry. Для set_field укажи block_id, field_id, value; для clear_field "
-        "block_id и field_id; для clear_block только singleton block_id; для add_entry "
-        "только repeatable block_id и value/title; для delete_entry только repeatable "
+        "Блоки бывают type=required (один обязательный), type=optional (ноль или один) "
+        "и type=multiple (ноль или много entries). Поддержанные операции patches: "
+        "set_field, clear_field, clear_block, add_entry, delete_entry. Для set_field "
+        "укажи block_id, field_id, value; для clear_field block_id и field_id; для "
+        "clear_block только required/optional block_id; для add_entry только "
+        "type=multiple block_id и value/title; для delete_entry только type=multiple "
         "block_id и существующий entry_id. "
         "Понимай общие формулировки: 'поставь/измени/обнови <поле> <блока> на <значение>' "
         "как set_field, 'очисти/убери значение <поле>' как clear_field, 'очисти блок "
-        "<блок>' как clear_block, 'добавь <repeatable-блок> ...' как add_entry плюс "
-        "set_field для известных деталей, 'удали <repeatable-блок/entry>' как delete_entry. "
+        "<блок>' как clear_block, 'добавь <multiple-блок> ...' как add_entry плюс "
+        "set_field для известных деталей, 'удали <multiple-блок/entry>' как delete_entry. "
         "Если пользователь называет блок и значение без поля, используй "
         "default_field_when_omitted только когда он задан в контексте и цель однозначна; "
-        "иначе needs_clarification=true. Для repeatable-блоков изменение или удаление "
+        "иначе needs_clarification=true. Для type=multiple блоков изменение или удаление "
         "существующего элемента требует однозначного entry_id из entries. При добавлении "
-        "нового repeatable-элемента можно сначала вернуть add_entry, а последующие "
+        "нового multiple-элемента можно сначала вернуть add_entry, а последующие "
         "set_field привязать к нему тем же entry_id или оставить entry_id пустым, если в "
         "этом patch ровно один add_entry для блока. "
         "Если есть сомнение в блоке, поле, entry или значении, не угадывай: "
@@ -84,7 +86,7 @@ def _block_context(block: BlockSpec, stored: Any) -> dict[str, Any]:
     item: dict[str, Any] = {
         "id": block.id,
         "title": block.title,
-        "multiple": block.multiple,
+        "type": block.type.value,
         "default_field_when_omitted": _default_field_when_omitted(block),
         "fields": [
             {
@@ -97,7 +99,7 @@ def _block_context(block: BlockSpec, stored: Any) -> dict[str, Any]:
             for field_id, field in block.fields.items()
         ],
     }
-    if block.multiple:
+    if block.is_multiple:
         item["entries"] = _repeatable_entries(block, stored)
     else:
         fields = stored.get("fields", {}) if isinstance(stored, dict) else {}
@@ -148,7 +150,7 @@ def _example_lines(schema: MeetingSchema) -> list[str]:
         (
             block
             for block in schema.blocks
-            if not block.multiple and _default_field_when_omitted(block)
+            if block.is_singleton and _default_field_when_omitted(block)
         ),
         None,
     )
@@ -167,7 +169,7 @@ def _example_lines(schema: MeetingSchema) -> list[str]:
         examples.append(
             f"'{field.label} {block.title} Новое значение' -> set_field {block.id}.{field_id}"
         )
-    repeatable = next((block for block in schema.blocks if block.multiple), None)
+    repeatable = next((block for block in schema.blocks if block.is_multiple), None)
     if repeatable is not None:
         examples.append(f"'добавь {repeatable.title} Новая запись' -> add_entry {repeatable.id}")
         examples.append(
@@ -179,7 +181,7 @@ def _example_lines(schema: MeetingSchema) -> list[str]:
 
 def _first_non_default_singleton_field(schema: MeetingSchema) -> tuple[BlockSpec, str] | None:
     for block in schema.blocks:
-        if block.multiple:
+        if block.is_multiple:
             continue
         default_field = _default_field_when_omitted(block)
         for field_id in block.fields:

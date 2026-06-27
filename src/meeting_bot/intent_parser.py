@@ -73,9 +73,9 @@ def validate_intent_domain(result: IntentResult, schema: MeetingSchema) -> Inten
             raise ValueError(f"Unknown block: {patch.block_id}")
         if patch.op in {"set_field", "clear_field"} and patch.field_id not in block.fields:
             raise ValueError(f"Unknown field: {patch.block_id}.{patch.field_id}")
-        if patch.op in {"add_entry", "delete_entry"} and not block.multiple:
+        if patch.op in {"add_entry", "delete_entry"} and not block.is_multiple:
             raise ValueError(f"Block is not repeatable: {patch.block_id}")
-        if patch.op == "clear_block" and block.multiple:
+        if patch.op == "clear_block" and block.is_multiple:
             raise ValueError(f"Block is repeatable: {patch.block_id}")
     if result.needs_clarification and not result.clarification_question:
         raise ValueError("clarification_question is required")

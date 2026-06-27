@@ -101,6 +101,8 @@ def test_intent_context_contains_schema_and_repeatable_entries(loaded_schema) ->
 
     speaker = next(block for block in context["blocks"] if block["id"] == "speaker")
     assert speaker["title"] == "Спикер"
+    assert speaker["type"] == "required"
+    assert "multiple" not in speaker
     assert speaker["default_field_when_omitted"] == "name"
     assert speaker["current_fields"] == {"slides": "В процессе"}
     assert {field["id"] for field in speaker["fields"]} == {
@@ -111,7 +113,8 @@ def test_intent_context_contains_schema_and_repeatable_entries(loaded_schema) ->
     }
 
     announcements = next(block for block in context["blocks"] if block["id"] == "announcements")
-    assert announcements["multiple"] is True
+    assert announcements["type"] == "multiple"
+    assert "multiple" not in announcements
     assert announcements["entries"] == [
         {
             "entry_id": "entry-1",

@@ -3,7 +3,7 @@ title: Список пунктов для проверки к собранию 4
 blocks:
 - id: main_speaker
   title: Главный спикер
-  multiple: false
+  type: required
   fields:
     name:
       label: Имя
@@ -224,7 +224,7 @@ blocks:
       deadline: null
 - id: small_speaker
   title: Малый спикер
-  multiple: false
+  type: required
   fields:
     name:
       label: Имя
@@ -424,7 +424,7 @@ blocks:
       deadline: null
 - id: worship
   title: Прославление
-  multiple: false
+  type: required
   fields:
     leader_name:
       label: Имя лидера
@@ -504,7 +504,7 @@ blocks:
       deadline: null
 - id: additional_blocks
   title: Дополнительные блоки
-  multiple: true
+  type: multiple
   fields:
     block_type:
       label: Тип блока
@@ -720,7 +720,7 @@ blocks:
       deadline: null
 - id: announcements
   title: Объявления
-  multiple: true
+  type: multiple
   fields:
     topic:
       label: Тема
@@ -804,7 +804,7 @@ blocks:
       deadline: null
 - id: schedule
   title: Расписание
-  multiple: false
+  type: required
   fields:
     slide_ready:
       label: Слайд готов
@@ -821,7 +821,7 @@ blocks:
         minute: 0
 - id: book
   title: Книга
-  multiple: false
+  type: required
   fields:
     book_title:
       label: Название книги
@@ -877,7 +877,7 @@ blocks:
         minute: 0
 - id: teams
   title: Команды
-  multiple: false
+  type: required
   fields:
     order_team:
       label: Команда порядка
@@ -1008,7 +1008,7 @@ blocks:
       deadline: null
 - id: ozszh
   title: ОЖСЖ
-  multiple: false
+  type: required
   fields:
     video_type:
       label: Видео общее или 4.0
@@ -1055,7 +1055,7 @@ blocks:
       deadline: null
 - id: communion
   title: Причастие
-  multiple: false
+  type: optional
   fields:
     exists:
       label: Есть ли причастие
@@ -1110,7 +1110,7 @@ blocks:
       deadline: null
 - id: second_offering_before_sermon
   title: Второе пожертвование перед проповедью
-  multiple: false
+  type: optional
   fields:
     exists:
       label: Есть ли второе пожертвование
@@ -1163,7 +1163,7 @@ blocks:
         minute: 0
 - id: other
   title: Другое
-  multiple: false
+  type: required
   fields:
     communion_cups_test_drive:
       label: Тест-драйв домешек

@@ -52,3 +52,4 @@ async def test_notification_window_and_dedup(card_service, database, app_config)
     assert first_count == 2  # root-admin and editor
     assert len(bot.messages) == first_count
     assert "Слайды" in bot.messages[0][1]
+    assert "Причастие" not in bot.messages[0][1]

@@ -24,12 +24,12 @@ title: "Bad"
 blocks:
   - id: same
     title: A
-    multiple: false
+    type: required
     fields:
       x: {label: X, allowed_values: [Да], ready_if: [Да], deadline: null}
   - id: same
     title: B
-    multiple: false
+    type: required
     fields:
       y: {label: Y, allowed_values: [Да], ready_if: [Да], deadline: null}
 """,
@@ -48,7 +48,7 @@ title: "Bad"
 blocks:
   - id: block
     title: Block
-    multiple: false
+    type: required
     fields:
       value: {label: First, allowed_values: [Да], ready_if: [Да], deadline: null}
       value: {label: Second, allowed_values: [Да], ready_if: [Да], deadline: null}
@@ -56,4 +56,23 @@ blocks:
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="duplicate key"):
+        load_meeting_schema(path)
+
+
+def test_legacy_multiple_without_type_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "legacy.yaml"
+    path.write_text(
+        """
+version: "1"
+title: "Legacy"
+blocks:
+  - id: block
+    title: Block
+    multiple: false
+    fields:
+      value: {label: Value, allowed_values: [Да], ready_if: [Да], deadline: null}
+""",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="type"):
         load_meeting_schema(path)

@@ -28,7 +28,7 @@ title: "Тестовое собрание"
 blocks:
   - id: speaker
     title: "Спикер"
-    multiple: false
+    type: required
     fields:
       name:
         label: "Имя"
@@ -52,7 +52,7 @@ blocks:
         deadline: null
   - id: announcements
     title: "Объявления"
-    multiple: true
+    type: multiple
     fields:
       title:
         label: "Название"
@@ -64,6 +64,20 @@ blocks:
         allowed_values: ["Да", "В процессе", "Не требуется"]
         ready_if: ["Да", "Не требуется"]
         deadline: {day: 7, hour: 15, minute: 0}
+  - id: communion
+    title: "Причастие"
+    type: optional
+    fields:
+      prepared:
+        label: "Подготовлено"
+        allowed_values: ["Да", "В процессе"]
+        ready_if: ["Да"]
+        deadline: {day: 6, hour: 10, minute: 0}
+      notes:
+        label: "Пометки"
+        allowed_values: ["Любое значение"]
+        ready_if: ["Любое значение или его отсутствие"]
+        deadline: null
 """,
         encoding="utf-8",
     )

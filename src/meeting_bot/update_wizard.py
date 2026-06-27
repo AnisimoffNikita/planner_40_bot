@@ -95,10 +95,12 @@ class UpdateWizardService:
         lookup = await self._load_session(user_id, chat_id)
         if lookup.session is None:
             return WizardOutcome(message=self._missing_session_message(lookup.expired))
+        context = self._decode_context(lookup.session.context_json)
+        if self._state(context) == "pending_confirmation":
+            return WizardOutcome(message="Сначала примени или отмени предложенное изменение.")
         if data == "uw:act:cancel":
             await self._delete_session(user_id)
             return WizardOutcome(message="Обновление отменено.", cancelled=True)
-        context = self._decode_context(lookup.session.context_json)
         if data == "uw:act:back":
             back = self._back_context(context)
             return WizardOutcome(render=await self._render_and_save(user_id, chat_id, back))
@@ -123,6 +125,8 @@ class UpdateWizardService:
                 return WizardOutcome(message=self._missing_session_message(expired=True))
             return None
         context = self._decode_context(lookup.session.context_json)
+        if self._state(context) == "pending_confirmation":
+            return WizardOutcome(message="Сначала примени или отмени предложенное изменение.")
         if self._state(context) != "text_input":
             return WizardOutcome(message="Выбери кнопку в интерфейсе обновления или нажми Отмена.")
         value = text.strip()
@@ -144,6 +148,13 @@ class UpdateWizardService:
                     )
                 ],
             )
+            await self._save_pending_confirmation(
+                user_id,
+                chat_id,
+                pending.id,
+                approved_context=self._add_entry_approved_context(context, pending),
+                cancelled_context=self._multiple_entries_resume_context(context),
+            )
             return WizardOutcome(pending=pending)
         if purpose == "set_field":
             pending = await self._create_pending(
@@ -160,6 +171,14 @@ class UpdateWizardService:
                     )
                 ],
             )
+            resume_context = self._field_list_resume_context(context)
+            await self._save_pending_confirmation(
+                user_id,
+                chat_id,
+                pending.id,
+                approved_context=resume_context,
+                cancelled_context=resume_context,
+            )
             return WizardOutcome(pending=pending)
         raise DomainError("Неизвестное состояние ввода.")
 
@@ -170,6 +189,27 @@ class UpdateWizardService:
                     UpdateWizardSession.expires_at < datetime.now(UTC).replace(tzinfo=None)
                 )
             )
+
+    async def resume_after_pending(
+        self, user_id: int, chat_id: int, pending_id: int, status: str
+    ) -> WizardRender | None:
+        lookup = await self._load_session(user_id, chat_id)
+        if lookup.session is None:
+            return None
+        context = self._decode_context(lookup.session.context_json)
+        if self._state(context) != "pending_confirmation":
+            return None
+        if self._int_context(context, "pending_id") != pending_id:
+            return None
+        if status not in {"approved", "cancelled"}:
+            await self._delete_session(user_id)
+            return None
+        key = "resume_on_approved" if status == "approved" else "resume_on_cancelled"
+        resume_context = self._optional_dict_context(context, key)
+        if resume_context is None:
+            await self._delete_session(user_id)
+            return None
+        return await self._render_and_save(user_id, chat_id, resume_context)
 
     async def _handle_option(
         self,
@@ -183,7 +223,7 @@ class UpdateWizardService:
         if action == "select_block":
             block_id = self._str_payload(payload, "block_id")
             block = self.cards.loaded_schema.schema.block_map[block_id]
-            state = "multiple_entries" if block.multiple else "singleton_actions"
+            state = "multiple_entries" if block.is_multiple else "singleton_actions"
             next_context = self._with_back(
                 {"state": state, "block_id": block_id, "page": 0}, context
             )
@@ -202,6 +242,7 @@ class UpdateWizardService:
         if action == "clear_block":
             block_id = self._str_payload(payload, "block_id")
             block = self.cards.loaded_schema.schema.block_map[block_id]
+            resume_context = copy.deepcopy(context)
             pending = await self._create_pending(
                 user_id,
                 chat_id,
@@ -212,6 +253,13 @@ class UpdateWizardService:
                         human_label=block.title,
                     )
                 ],
+            )
+            await self._save_pending_confirmation(
+                user_id,
+                chat_id,
+                pending.id,
+                approved_context=resume_context,
+                cancelled_context=resume_context,
             )
             return WizardOutcome(pending=pending)
         if action == "add_entry":
@@ -252,6 +300,7 @@ class UpdateWizardService:
             )
             return WizardOutcome(render=await self._render_and_save(user_id, chat_id, next_context))
         if action == "delete_entry":
+            resume_context = self._multiple_entries_resume_context(context)
             pending = await self._create_pending(
                 user_id,
                 chat_id,
@@ -263,6 +312,13 @@ class UpdateWizardService:
                         human_label=self._str_payload(payload, "entry_title"),
                     )
                 ],
+            )
+            await self._save_pending_confirmation(
+                user_id,
+                chat_id,
+                pending.id,
+                approved_context=resume_context,
+                cancelled_context=resume_context,
             )
             return WizardOutcome(pending=pending)
         if action == "select_field":
@@ -293,6 +349,14 @@ class UpdateWizardService:
                     )
                 ],
             )
+            resume_context = self._field_list_resume_context(context)
+            await self._save_pending_confirmation(
+                user_id,
+                chat_id,
+                pending.id,
+                approved_context=resume_context,
+                cancelled_context=resume_context,
+            )
             return WizardOutcome(pending=pending)
         if action == "manual_value":
             field = self._field_from_payload(payload)
@@ -322,6 +386,14 @@ class UpdateWizardService:
                         human_label=await self._operation_label_from_payload(payload),
                     )
                 ],
+            )
+            resume_context = self._field_list_resume_context(context)
+            await self._save_pending_confirmation(
+                user_id,
+                chat_id,
+                pending.id,
+                approved_context=resume_context,
+                cancelled_context=resume_context,
             )
             return WizardOutcome(pending=pending)
         raise DomainError("Неизвестное действие интерфейса обновления.")
@@ -598,9 +670,18 @@ class UpdateWizardService:
         )
 
     async def _save_session(self, user_id: int, chat_id: int, render: WizardRender) -> None:
+        await self._save_context(user_id, chat_id, render.context, render.options)
+
+    async def _save_context(
+        self,
+        user_id: int,
+        chat_id: int,
+        context: dict[str, object],
+        options: Sequence[WizardOption],
+    ) -> None:
         now = datetime.now(UTC).replace(tzinfo=None)
-        state = self._state(render.context)
-        context_json = json.dumps(render.context, ensure_ascii=False)
+        state = self._state(context)
+        context_json = json.dumps(context, ensure_ascii=False)
         options_json = json.dumps(
             [
                 {
@@ -609,7 +690,7 @@ class UpdateWizardService:
                     "action": option.action,
                     "payload": option.payload,
                 }
-                for option in render.options
+                for option in options
             ],
             ensure_ascii=False,
         )
@@ -636,6 +717,23 @@ class UpdateWizardService:
                 existing.created_at = now
                 existing.expires_at = now + SESSION_TTL
 
+    async def _save_pending_confirmation(
+        self,
+        user_id: int,
+        chat_id: int,
+        pending_id: int,
+        *,
+        approved_context: dict[str, object],
+        cancelled_context: dict[str, object],
+    ) -> None:
+        context: dict[str, object] = {
+            "state": "pending_confirmation",
+            "pending_id": pending_id,
+            "resume_on_approved": copy.deepcopy(approved_context),
+            "resume_on_cancelled": copy.deepcopy(cancelled_context),
+        }
+        await self._save_context(user_id, chat_id, context, [])
+
     async def _load_session(self, user_id: int, chat_id: int) -> SessionLookup:
         async with self.database.session() as session, session.begin():
             existing = await session.get(UpdateWizardSession, user_id)
@@ -657,13 +755,86 @@ class UpdateWizardService:
     async def _create_pending(
         self, user_id: int, chat_id: int, operations: list[PatchOperation]
     ) -> PendingChange:
-        pending = await self.cards.create_pending(
+        return await self.cards.create_pending(
             user_id=user_id,
             chat_id=chat_id,
             operations=operations,
         )
-        await self._delete_session(user_id)
-        return pending
+
+    def _field_list_resume_context(self, context: dict[str, object]) -> dict[str, object]:
+        existing = self._ancestor_context(context, "field_list")
+        if existing is not None:
+            return existing
+        resume: dict[str, object] = {
+            "state": "field_list",
+            "block_id": self._str_context(context, "block_id"),
+            "entry_id": self._optional_str_context(context, "entry_id"),
+            "page": 0,
+        }
+        entry_title = self._optional_str_context(context, "entry_title")
+        if entry_title is not None:
+            resume["entry_title"] = entry_title
+        return resume
+
+    def _multiple_entries_resume_context(self, context: dict[str, object]) -> dict[str, object]:
+        existing = self._ancestor_context(context, "multiple_entries")
+        if existing is not None:
+            return existing
+        return {
+            "state": "multiple_entries",
+            "block_id": self._str_context(context, "block_id"),
+            "page": 0,
+        }
+
+    def _add_entry_approved_context(
+        self, context: dict[str, object], pending: PendingChange
+    ) -> dict[str, object]:
+        operation = self._first_pending_operation(pending)
+        block_id = self._str_context(context, "block_id")
+        entry_id = operation.get("entry_id")
+        if not isinstance(entry_id, str) or not entry_id:
+            raise DomainError("Не удалось открыть новый элемент после подтверждения.")
+        entry_title = operation.get("value") or operation.get("human_label") or "Без названия"
+        if not isinstance(entry_title, str):
+            entry_title = "Без названия"
+        entries_context = self._multiple_entries_resume_context(context)
+        entry_actions_context = self._with_back(
+            {
+                "state": "multiple_entry_actions",
+                "block_id": block_id,
+                "entry_id": entry_id,
+                "entry_title": entry_title,
+                "page": 0,
+            },
+            entries_context,
+        )
+        return self._with_back(
+            {
+                "state": "field_list",
+                "block_id": block_id,
+                "entry_id": entry_id,
+                "entry_title": entry_title,
+                "page": 0,
+            },
+            entry_actions_context,
+        )
+
+    def _ancestor_context(self, context: dict[str, object], state: str) -> dict[str, object] | None:
+        cursor = copy.deepcopy(context)
+        for _ in range(10):
+            if cursor.get("state") == state:
+                return cursor
+            back = cursor.get("back")
+            if not isinstance(back, dict):
+                return None
+            cursor = copy.deepcopy(cast(dict[str, object], back))
+        return None
+
+    def _first_pending_operation(self, pending: PendingChange) -> dict[str, object]:
+        loaded = json.loads(pending.patch_json)
+        if not isinstance(loaded, list) or not loaded or not isinstance(loaded[0], dict):
+            raise DomainError("Предложение изменения повреждено.")
+        return cast(dict[str, object], loaded[0])
 
     async def _entries(self, block_id: str) -> list[dict[str, object]]:
         card = await self.cards.get_or_create_current()
@@ -794,6 +965,16 @@ class UpdateWizardService:
         if not isinstance(value, str):
             raise DomainError("Сессия обновления повреждена.")
         return value
+
+    def _optional_dict_context(
+        self, context: dict[str, object], key: str
+    ) -> dict[str, object] | None:
+        value = context.get(key)
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            raise DomainError("Сессия обновления повреждена.")
+        return copy.deepcopy(cast(dict[str, object], value))
 
     def _int_context(self, context: dict[str, object], key: str) -> int:
         value = context.get(key)

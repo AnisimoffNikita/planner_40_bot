@@ -70,6 +70,56 @@ async def test_empty_repeatable_hidden_and_added_entry_visible(
     assert len(card_service.status_blocks(after, schema)) == 2
 
 
+async def test_optional_singleton_hidden_until_value_then_clear_block_hides(
+    card_service, database, app_config
+) -> None:
+    await approve_editor(database, app_config)
+    card = await card_service.get_or_create_current(
+        datetime(2026, 6, 25, tzinfo=app_config.timezone)
+    )
+    schema, _ = await card_service.schema_for_card(card)
+    assert card_service.card_data(card)["blocks"]["communion"] is None
+    assert [block.block_id for block in card_service.status_blocks(card, schema)] == ["speaker"]
+
+    pending = await card_service.create_pending(
+        user_id=2,
+        chat_id=2,
+        operations=[
+            PatchOperation(
+                op="set_field",
+                block_id="communion",
+                field_id="prepared",
+                value="В процессе",
+            )
+        ],
+        now=datetime(2026, 6, 25, tzinfo=app_config.timezone),
+    )
+    await card_service.resolve_pending(pending.id, 2, approve=True)
+    filled = await card_service.get_or_create_current(
+        datetime(2026, 6, 25, tzinfo=app_config.timezone)
+    )
+    assert card_service.card_data(filled)["blocks"]["communion"]["fields"] == {
+        "prepared": "В процессе"
+    }
+    assert [block.block_id for block in card_service.status_blocks(filled, schema)] == [
+        "speaker",
+        "communion",
+    ]
+
+    clear = await card_service.create_pending(
+        user_id=2,
+        chat_id=2,
+        operations=[PatchOperation(op="clear_block", block_id="communion")],
+        now=datetime(2026, 6, 25, tzinfo=app_config.timezone),
+    )
+    await card_service.resolve_pending(clear.id, 2, approve=True)
+    cleared = await card_service.get_or_create_current(
+        datetime(2026, 6, 25, tzinfo=app_config.timezone)
+    )
+    assert card_service.card_data(cleared)["blocks"]["communion"] is None
+    assert [block.block_id for block in card_service.status_blocks(cleared, schema)] == ["speaker"]
+
+
 async def test_viewer_cannot_create_patch(card_service, database, app_config) -> None:
     access = AccessService(database, app_config)
     await access.ensure_root_admin()

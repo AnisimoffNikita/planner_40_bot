@@ -56,7 +56,7 @@ async def test_wizard_paginates_options_by_six_2x3(tmp_path: Path, database, app
         f"""
   - id: block_{index}
     title: "Блок {index}"
-    multiple: false
+    type: required
     fields:
       name:
         label: "Имя"
@@ -119,6 +119,66 @@ async def test_singleton_manual_input_creates_pending_without_changing_card(
     assert patch["field_id"] == "name"
     assert patch["value"] == "Иван Иванов"
     assert card_service.card_data(card)["blocks"]["speaker"]["fields"] == {}
+
+    resolved = await card_service.resolve_pending(outcome.pending.id, 2, approve=True)
+    render = await service.resume_after_pending(2, 2, outcome.pending.id, resolved.status)
+    assert render is not None
+    assert "Спикер\nКакое поле изменить?" in render.text
+    labels = button_labels(render)
+    assert "Имя" in labels
+    assert "Слайды" in labels
+
+    updated = await card_service.get_or_create_current()
+    assert card_service.card_data(updated)["blocks"]["speaker"]["fields"]["name"] == "Иван Иванов"
+
+
+async def test_singleton_field_approve_returns_to_same_block_fields(
+    database, app_config, card_service
+) -> None:
+    await approve_editor(database, app_config)
+    await card_service.get_or_create_current()
+    service = UpdateWizardService(database, card_service)
+
+    await service.start(2, 2)
+    await service.handle_callback(2, 2, "uw:opt:o0")
+    await service.handle_callback(2, 2, "uw:opt:o0")
+    await service.handle_callback(2, 2, "uw:opt:o1")
+    outcome = await service.handle_callback(2, 2, "uw:opt:o0")
+    assert outcome.pending is not None
+
+    resolved = await card_service.resolve_pending(outcome.pending.id, 2, approve=True)
+    render = await service.resume_after_pending(2, 2, outcome.pending.id, resolved.status)
+
+    assert render is not None
+    assert "Спикер\nКакое поле изменить?" in render.text
+    labels = button_labels(render)
+    assert "Имя" in labels
+    assert "Слайды" in labels
+    card = await card_service.get_or_create_current()
+    assert card_service.card_data(card)["blocks"]["speaker"]["fields"]["slides"] == "Да"
+
+
+async def test_singleton_field_cancel_returns_to_same_block_fields_without_change(
+    database, app_config, card_service
+) -> None:
+    await approve_editor(database, app_config)
+    await card_service.get_or_create_current()
+    service = UpdateWizardService(database, card_service)
+
+    await service.start(2, 2)
+    await service.handle_callback(2, 2, "uw:opt:o0")
+    await service.handle_callback(2, 2, "uw:opt:o0")
+    await service.handle_callback(2, 2, "uw:opt:o1")
+    outcome = await service.handle_callback(2, 2, "uw:opt:o0")
+    assert outcome.pending is not None
+
+    resolved = await card_service.resolve_pending(outcome.pending.id, 2, approve=False)
+    render = await service.resume_after_pending(2, 2, outcome.pending.id, resolved.status)
+
+    assert render is not None
+    assert "Спикер\nКакое поле изменить?" in render.text
+    card = await card_service.get_or_create_current()
+    assert "slides" not in card_service.card_data(card)["blocks"]["speaker"]["fields"]
 
 
 async def test_singleton_clear_creates_clear_block_pending(
@@ -194,6 +254,78 @@ async def test_multiple_flow_uses_entry_title_for_edit_add_and_delete(
     assert outcome.pending is not None
     assert f"[{entry_id}]" not in outcome.pending.preview_text
     assert "Удалить «Лагерь» из «Объявления»" in outcome.pending.preview_text
+
+
+async def test_repeatable_add_entry_approve_opens_new_entry_fields(
+    database, app_config, card_service
+) -> None:
+    await approve_editor(database, app_config)
+    await card_service.get_or_create_current()
+    service = UpdateWizardService(database, card_service)
+
+    await service.start(2, 2)
+    await service.handle_callback(2, 2, "uw:opt:o1")
+    await service.handle_callback(2, 2, "uw:opt:o0")
+    outcome = await service.handle_text(2, 2, "Лагерь")
+    assert outcome is not None
+    assert outcome.pending is not None
+
+    resolved = await card_service.resolve_pending(outcome.pending.id, 2, approve=True)
+    render = await service.resume_after_pending(2, 2, outcome.pending.id, resolved.status)
+
+    assert render is not None
+    assert "Объявления / Лагерь\nКакое поле изменить?" in render.text
+    labels = button_labels(render)
+    assert "Название" in labels
+    assert "Согласовано" in labels
+    card = await card_service.get_or_create_current()
+    entries = card_service.card_data(card)["blocks"]["announcements"]
+    assert len(entries) == 1
+    assert entries[0]["title"] == "Лагерь"
+
+
+async def test_repeatable_add_entry_cancel_returns_to_entries_without_change(
+    database, app_config, card_service
+) -> None:
+    await approve_editor(database, app_config)
+    await card_service.get_or_create_current()
+    service = UpdateWizardService(database, card_service)
+
+    await service.start(2, 2)
+    await service.handle_callback(2, 2, "uw:opt:o1")
+    await service.handle_callback(2, 2, "uw:opt:o0")
+    outcome = await service.handle_text(2, 2, "Лагерь")
+    assert outcome is not None
+    assert outcome.pending is not None
+
+    resolved = await card_service.resolve_pending(outcome.pending.id, 2, approve=False)
+    render = await service.resume_after_pending(2, 2, outcome.pending.id, resolved.status)
+
+    assert render is not None
+    assert "Блок: Объявления" in render.text
+    assert "Пока ничего не добавлено." in render.text
+    assert "Добавить новый" in button_labels(render)
+    card = await card_service.get_or_create_current()
+    assert card_service.card_data(card)["blocks"]["announcements"] == []
+
+
+async def test_direct_pending_without_wizard_session_does_not_resume(
+    database, app_config, card_service
+) -> None:
+    await approve_editor(database, app_config)
+    await card_service.get_or_create_current()
+    service = UpdateWizardService(database, card_service)
+    pending = await card_service.create_pending(
+        user_id=2,
+        chat_id=2,
+        operations=[
+            PatchOperation(op="set_field", block_id="speaker", field_id="name", value="Иван")
+        ],
+    )
+
+    resolved = await card_service.resolve_pending(pending.id, 2, approve=True)
+
+    assert await service.resume_after_pending(2, 2, pending.id, resolved.status) is None
 
 
 async def test_fixed_values_are_buttons_and_manual_hints_request_text(

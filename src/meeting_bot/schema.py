@@ -6,6 +6,7 @@ import logging
 import re
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
+from enum import StrEnum
 from pathlib import Path
 
 import yaml
@@ -71,13 +72,35 @@ class FieldSpec(BaseModel):
         return normalized
 
 
+class BlockType(StrEnum):
+    REQUIRED = "required"
+    OPTIONAL = "optional"
+    MULTIPLE = "multiple"
+
+
 class BlockSpec(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: str
     title: str = Field(min_length=1)
-    multiple: bool
+    type: BlockType
     fields: dict[str, FieldSpec] = Field(min_length=1)
+
+    @property
+    def is_required(self) -> bool:
+        return self.type == BlockType.REQUIRED
+
+    @property
+    def is_optional(self) -> bool:
+        return self.type == BlockType.OPTIONAL
+
+    @property
+    def is_multiple(self) -> bool:
+        return self.type == BlockType.MULTIPLE
+
+    @property
+    def is_singleton(self) -> bool:
+        return self.type in {BlockType.REQUIRED, BlockType.OPTIONAL}
 
     @field_validator("id")
     @classmethod
@@ -122,7 +145,7 @@ class MeetingSchema(BaseModel):
                 {
                     "id": block.id,
                     "title": block.title,
-                    "multiple": block.multiple,
+                    "type": block.type.value,
                     "fields": {
                         field_id: {
                             "label": field.label,

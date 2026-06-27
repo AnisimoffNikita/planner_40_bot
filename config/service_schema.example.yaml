@@ -3,7 +3,7 @@ title: "Пример карточки собрания"
 blocks:
   - id: main_speaker
     title: "Главный спикер"
-    multiple: false
+    type: required
     fields:
       name:
         label: "Имя"
@@ -13,9 +13,21 @@ blocks:
           day: 3
           hour: 10
           minute: 0
+  - id: communion
+    title: "Причастие"
+    type: optional
+    fields:
+      prepared:
+        label: "Подготовлено"
+        allowed_values: ["Да", "В процессе"]
+        ready_if: ["Да"]
+        deadline:
+          day: 6
+          hour: 10
+          minute: 0
   - id: announcements
     title: "Объявления"
-    multiple: true
+    type: multiple
     fields:
       topic:
         label: "Тема"
@@ -30,4 +42,3 @@ blocks:
         allowed_values: ["Любое значение"]
         ready_if: ["Любое значение или его отсутствие"]
         deadline: null
-

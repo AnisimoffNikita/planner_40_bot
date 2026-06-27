@@ -174,7 +174,7 @@ async def schema_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     ]
     lines.extend(
         f"• <code>{html.escape(block.id)}</code> — {html.escape(block.title)}"
-        + (" (повторяемый)" if block.multiple else "")
+        + f" ({html.escape(block.type.value)})"
         for block in loaded.schema.blocks
     )
     await send_long(update.effective_message, "\n".join(lines))

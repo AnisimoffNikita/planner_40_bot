@@ -63,9 +63,26 @@ def utcnow() -> datetime:
 
 
 def empty_card_data(schema: MeetingSchema) -> dict[str, Any]:
-    return {
-        "blocks": {block.id: [] if block.multiple else {"fields": {}} for block in schema.blocks}
-    }
+    return {"blocks": {block.id: _empty_block_value(block) for block in schema.blocks}}
+
+
+def _empty_block_value(block: BlockSpec) -> Any:
+    if block.is_multiple:
+        return []
+    if block.is_optional:
+        return None
+    return {"fields": {}}
+
+
+def _has_current_schema_value(block: BlockSpec, fields: dict[str, Any]) -> bool:
+    for field_id in block.fields:
+        value = fields.get(field_id)
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        return True
+    return False
 
 
 class CardService:
@@ -147,7 +164,7 @@ class CardService:
     def _merge_schema_defaults(self, data: dict[str, Any]) -> dict[str, Any]:
         blocks = data.setdefault("blocks", {})
         for block in self.loaded_schema.schema.blocks:
-            blocks.setdefault(block.id, [] if block.multiple else {"fields": {}})
+            blocks.setdefault(block.id, _empty_block_value(block))
         return data
 
     @staticmethod
@@ -195,7 +212,7 @@ class CardService:
         result: list[StatusBlock] = []
         for block in schema.blocks:
             stored = data_blocks.get(block.id)
-            if block.multiple:
+            if block.is_multiple:
                 if not isinstance(stored, list) or not stored:
                     continue
                 for entry in stored:
@@ -212,6 +229,11 @@ class CardService:
                             entry_title=str(entry.get("title", "")) or None,
                         )
                     )
+            elif block.is_optional:
+                fields = stored.get("fields", {}) if isinstance(stored, dict) else {}
+                if not isinstance(fields, dict) or not _has_current_schema_value(block, fields):
+                    continue
+                result.append(self._status_block(card, block, fields, week_start, now))
             else:
                 fields = stored.get("fields", {}) if isinstance(stored, dict) else {}
                 result.append(self._status_block(card, block, fields, week_start, now))
@@ -349,7 +371,7 @@ class CardService:
             if block is None:
                 raise DomainError(f"Я не нашел блок {operation.block_id} в текущей схеме.")
             if operation.op == "add_entry":
-                if not block.multiple:
+                if not block.is_multiple:
                     raise DomainError(f"Блок {block.id} не является повторяемым.")
                 operation.entry_id = operation.entry_id or str(uuid4())
                 title = (operation.value or operation.human_label).strip()
@@ -365,28 +387,28 @@ class CardService:
                 if operation.value is None or not operation.value.strip():
                     raise DomainError("Пустое значение записать нельзя.")
                 operation.value = operation.value.strip()
-                if block.multiple and operation.entry_id is None:
+                if block.is_multiple and operation.entry_id is None:
                     candidates = pending_adds.get(block.id, [])
                     if len(candidates) != 1:
                         raise DomainError(
                             f"Этот блок повторяемый, нужно выбрать конкретный экземпляр {block.id}."
                         )
                     operation.entry_id = candidates[0]
-                if not block.multiple and operation.entry_id is not None:
+                if block.is_singleton and operation.entry_id is not None:
                     raise DomainError(f"Блок {block.id} не принимает entry_id.")
             elif operation.op == "clear_field":
                 if operation.field_id not in block.fields:
                     raise DomainError(
                         f"Я не нашел поле {block.id}.{operation.field_id} в текущей схеме."
                     )
-                if block.multiple and operation.entry_id is None:
+                if block.is_multiple and operation.entry_id is None:
                     raise DomainError(
                         f"Этот блок повторяемый, нужно выбрать конкретный экземпляр {block.id}."
                     )
-                if not block.multiple and operation.entry_id is not None:
+                if block.is_singleton and operation.entry_id is not None:
                     raise DomainError(f"Блок {block.id} не принимает entry_id.")
             elif operation.op == "clear_block":
-                if block.multiple:
+                if block.is_multiple:
                     raise DomainError(
                         f"Повторяемый блок {block.id} можно удалить только по экземпляру."
                     )
@@ -394,9 +416,9 @@ class CardService:
                 operation.field_id = None
                 operation.value = None
             elif operation.op == "delete_entry":
-                if not block.multiple:
+                if not block.is_multiple:
                     raise DomainError(f"Блок {block.id} не является повторяемым.")
-            if block.multiple and operation.entry_id and not operation.human_label:
+            if block.is_multiple and operation.entry_id and not operation.human_label:
                 operation.human_label = self._entry_title(data, block.id, operation.entry_id)
             self._apply_operation(data, operation, block)
             normalized.append(operation)
@@ -430,7 +452,7 @@ class CardService:
         self, data: dict[str, Any], operation: PatchOperation, block: BlockSpec
     ) -> None:
         blocks = data.setdefault("blocks", {})
-        if block.multiple:
+        if block.is_multiple:
             entries = blocks.setdefault(block.id, [])
             if not isinstance(entries, list):
                 raise DomainError(f"Данные блока {block.id} повреждены.")
@@ -456,20 +478,42 @@ class CardService:
                     raise DomainError("clear_field requires field_id")
                 fields = entry.setdefault("fields", {})
                 fields.pop(operation.field_id, None)
-            else:
+            elif operation.op == "set_field":
                 entry.setdefault("fields", {})[operation.field_id] = operation.value
+            else:
+                raise DomainError(f"Операция {operation.op} недоступна для повторяемого блока.")
         else:
-            stored = blocks.setdefault(block.id, {"fields": {}})
-            if not isinstance(stored, dict):
-                raise DomainError(f"Данные блока {block.id} повреждены.")
             if operation.op == "clear_block":
-                stored["fields"] = {}
-            elif operation.op == "clear_field":
+                if block.is_optional:
+                    blocks[block.id] = None
+                else:
+                    stored = blocks.setdefault(block.id, {"fields": {}})
+                    if not isinstance(stored, dict):
+                        raise DomainError(f"Данные блока {block.id} повреждены.")
+                    stored["fields"] = {}
+                return
+            if operation.op == "clear_field":
                 if operation.field_id is None:
                     raise DomainError("clear_field requires field_id")
+                stored = blocks.get(block.id)
+                if block.is_optional and stored is None:
+                    return
+                if stored is None and block.is_required:
+                    stored = {"fields": {}}
+                    blocks[block.id] = stored
+                if not isinstance(stored, dict):
+                    raise DomainError(f"Данные блока {block.id} повреждены.")
                 stored.setdefault("fields", {}).pop(operation.field_id, None)
-            else:
-                stored.setdefault("fields", {})[operation.field_id] = operation.value
+                return
+            if operation.op != "set_field":
+                raise DomainError(f"Операция {operation.op} недоступна для одиночного блока.")
+            stored = blocks.get(block.id)
+            if stored is None:
+                stored = {"fields": {}}
+                blocks[block.id] = stored
+            if not isinstance(stored, dict):
+                raise DomainError(f"Данные блока {block.id} повреждены.")
+            stored.setdefault("fields", {})[operation.field_id] = operation.value
 
     def preview(self, operations: list[PatchOperation]) -> str:
         lines = ["Предлагаемые изменения:"]

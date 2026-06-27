@@ -48,12 +48,15 @@ MEETING_BOT_DATABASE_URL=sqlite:////app/data/meeting_bot.sqlite3 \
 
 ## Схема и карточки
 
-Поддерживаются singleton- и repeatable-блоки. Значения хранятся в JSON:
+Блоки описываются полем `type`: `required` — один обязательный блок,
+`optional` — ноль или один блок, `multiple` — ноль или много записей. Значения
+хранятся в JSON:
 
 ```json
 {
   "blocks": {
     "main_speaker": {"fields": {"name": "Иван Иванов"}},
+    "communion": null,
     "announcements": [
       {
         "entry_id": "uuid",
@@ -130,5 +133,5 @@ docker compose --profile test run --rm meeting-bot-test
 4. Отправить вопрос и voice в личке.
 5. Добавить бота в группу и убедиться, что изменение запрещено, а `/summary`
    работает.
-6. Открыть `/status` и проверить кириллицу, цвета и отсутствие пустых repeatable
+6. Открыть `/status` и проверить кириллицу, цвета и отсутствие пустых multiple
    блоков.
