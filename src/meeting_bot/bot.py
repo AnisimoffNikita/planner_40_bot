@@ -8,6 +8,7 @@ from telegram.ext import (
     Application,
     ApplicationBuilder,
     CallbackQueryHandler,
+    ChatMemberHandler,
     CommandHandler,
     ContextTypes,
     Defaults,
@@ -144,7 +145,10 @@ def build_application(config: AppConfig, loaded_schema: LoadedSchema) -> Applica
         "pending": commands.pending_command,
         "cancel": commands.cancel_command,
         "users": admin.users_command,
+        "chats": admin.chats_command,
         "approve": admin.approve_command,
+        "approve_chat": admin.approve_chat_command,
+        "reject_chat": admin.reject_chat_command,
         "reject": admin.reject_command,
         "block_user": admin.block_user_command,
         "unblock_user": admin.unblock_user_command,
@@ -160,6 +164,9 @@ def build_application(config: AppConfig, loaded_schema: LoadedSchema) -> Applica
         CallbackQueryHandler(callbacks.user_approval_callback, pattern=r"^u:[ver]:\d+$")
     )
     application.add_handler(
+        CallbackQueryHandler(callbacks.chat_approval_callback, pattern=r"^c:[ar]:-?\d+$")
+    )
+    application.add_handler(
         CallbackQueryHandler(commands.summary_callback, pattern=r"^s:(pdf|overdue|today)$")
     )
     application.add_handler(
@@ -172,5 +179,8 @@ def build_application(config: AppConfig, loaded_schema: LoadedSchema) -> Applica
         MessageHandler(filters.VOICE & ~filters.COMMAND, messages.voice_message)
     )
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, messages.text_message))
+    application.add_handler(
+        ChatMemberHandler(messages.bot_chat_member, ChatMemberHandler.MY_CHAT_MEMBER)
+    )
     application.add_error_handler(_error_handler)
     return application

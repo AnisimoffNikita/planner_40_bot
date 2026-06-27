@@ -22,6 +22,7 @@ class UserStatus(StrEnum):
 class ChatStatus(StrEnum):
     PENDING = "pending"
     APPROVED = "approved"
+    REJECTED = "rejected"
     BLOCKED = "blocked"
 
 

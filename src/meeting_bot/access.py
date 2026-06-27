@@ -5,11 +5,14 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import desc, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from meeting_bot.config import AppConfig
 from meeting_bot.domain import ChatStatus, Role, UserStatus
 from meeting_bot.models import AuditLog, Chat, User
 from meeting_bot.storage import Database
+
+GROUP_CHAT_TYPES = {"group", "supergroup"}
 
 
 def now_utc() -> datetime:
@@ -17,15 +20,27 @@ def now_utc() -> datetime:
 
 
 @dataclass(frozen=True)
+class AccessActor:
+    telegram_user_id: int
+    username: str | None
+    full_name: str | None
+    role: str = Role.VIEWER.value
+    status: str = UserStatus.APPROVED.value
+
+
+@dataclass(frozen=True)
 class AccessContext:
-    user: User
+    user: User | AccessActor
     chat: Chat
     is_new_user: bool
     is_new_chat: bool
     admin_notification_delivered: bool | None = None
+    chat_notification_delivered: bool | None = None
 
     @property
     def approved(self) -> bool:
+        if self.chat.chat_type in GROUP_CHAT_TYPES:
+            return self.chat.status == ChatStatus.APPROVED.value and not self.blocked
         return self.user.status == UserStatus.APPROVED.value
 
     @property
@@ -47,6 +62,18 @@ class AccessContext:
     @property
     def can_use_llm(self) -> bool:
         return self.approved and not self.blocked and self.chat.status == ChatStatus.APPROVED.value
+
+    @property
+    def llm_role(self) -> str:
+        if self.chat.chat_type in GROUP_CHAT_TYPES:
+            return Role.VIEWER.value
+        return self.user.role
+
+
+@dataclass(frozen=True)
+class ChatObservation:
+    chat: Chat
+    is_new_chat: bool
 
 
 class AccessService:
@@ -81,6 +108,34 @@ class AccessService:
                 user.approved_at = user.approved_at or now
 
     async def observe(
+        self,
+        *,
+        user_id: int,
+        username: str | None,
+        full_name: str | None,
+        chat_id: int,
+        chat_type: str,
+        chat_title: str | None,
+    ) -> AccessContext:
+        if chat_type in GROUP_CHAT_TYPES:
+            return await self._observe_group(
+                user_id=user_id,
+                username=username,
+                full_name=full_name,
+                chat_id=chat_id,
+                chat_type=chat_type,
+                chat_title=chat_title,
+            )
+        return await self._observe_private(
+            user_id=user_id,
+            username=username,
+            full_name=full_name,
+            chat_id=chat_id,
+            chat_type=chat_type,
+            chat_title=chat_title,
+        )
+
+    async def _observe_private(
         self,
         *,
         user_id: int,
@@ -129,7 +184,7 @@ class AccessService:
 
             chat = await session.get(Chat, chat_id)
             is_new_chat = chat is None
-            read_only = chat_type in {"group", "supergroup", "channel"}
+            read_only = chat_type in GROUP_CHAT_TYPES or chat_type == "channel"
             if chat is None:
                 chat = Chat(
                     chat_id=chat_id,
@@ -148,6 +203,109 @@ class AccessService:
                 chat.updated_at = now
             await session.flush()
             return AccessContext(user, chat, is_new_user, is_new_chat)
+
+    async def _observe_group(
+        self,
+        *,
+        user_id: int,
+        username: str | None,
+        full_name: str | None,
+        chat_id: int,
+        chat_type: str,
+        chat_title: str | None,
+    ) -> AccessContext:
+        async with self.database.session() as session, session.begin():
+            now = now_utc()
+            user = await session.get(User, user_id)
+            if user is None:
+                actor: User | AccessActor = AccessActor(
+                    telegram_user_id=user_id,
+                    username=username,
+                    full_name=full_name,
+                )
+            else:
+                user.username = username
+                user.full_name = full_name
+                user.updated_at = now
+                if user_id == self.config.telegram.admin_user_id:
+                    user.role = Role.ADMIN.value
+                    user.status = UserStatus.APPROVED.value
+                actor = user
+
+            observation = await self._observe_group_chat_in_session(
+                session,
+                chat_id=chat_id,
+                chat_type=chat_type,
+                chat_title=chat_title,
+                actor_user_id=user_id,
+            )
+            await session.flush()
+            return AccessContext(
+                actor,
+                observation.chat,
+                is_new_user=False,
+                is_new_chat=observation.is_new_chat,
+            )
+
+    async def observe_group_chat(
+        self,
+        *,
+        chat_id: int,
+        chat_type: str,
+        chat_title: str | None,
+        actor_user_id: int | None = None,
+    ) -> ChatObservation:
+        async with self.database.session() as session, session.begin():
+            observation = await self._observe_group_chat_in_session(
+                session,
+                chat_id=chat_id,
+                chat_type=chat_type,
+                chat_title=chat_title,
+                actor_user_id=actor_user_id,
+            )
+            await session.flush()
+            return observation
+
+    async def _observe_group_chat_in_session(
+        self,
+        session: AsyncSession,
+        *,
+        chat_id: int,
+        chat_type: str,
+        chat_title: str | None,
+        actor_user_id: int | None,
+    ) -> ChatObservation:
+        now = now_utc()
+        chat = await session.get(Chat, chat_id)
+        is_new_chat = chat is None
+        if chat is None:
+            chat = Chat(
+                chat_id=chat_id,
+                chat_type=chat_type,
+                title=chat_title,
+                status=ChatStatus.PENDING.value,
+                read_only=True,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(chat)
+            session.add(
+                AuditLog(
+                    actor_user_id=actor_user_id,
+                    chat_id=chat_id,
+                    action="chat_registered",
+                    target_type="chat",
+                    target_id=str(chat_id),
+                    details_json=json.dumps({"title": chat_title, "chat_type": chat_type}),
+                    created_at=now,
+                )
+            )
+        else:
+            chat.chat_type = chat_type
+            chat.title = chat_title
+            chat.read_only = True
+            chat.updated_at = now
+        return ChatObservation(chat, is_new_chat)
 
     async def decide_user(
         self, actor_id: int, target_id: int, *, status: str, role: str | None = None
@@ -210,9 +368,42 @@ class AccessService:
             )
             return chat
 
+    async def decide_chat(self, actor_id: int, chat_id: int, *, status: str) -> Chat:
+        if actor_id != self.config.telegram.admin_user_id:
+            raise PermissionError("Только root-admin может управлять чатами.")
+        if status not in {
+            ChatStatus.APPROVED.value,
+            ChatStatus.REJECTED.value,
+            ChatStatus.BLOCKED.value,
+        }:
+            raise ValueError("Можно назначить только approved, rejected или blocked.")
+        async with self.database.session() as session, session.begin():
+            chat = await session.get(Chat, chat_id)
+            if chat is None:
+                raise ValueError("Чат не найден.")
+            chat.status = status
+            chat.updated_at = now_utc()
+            session.add(
+                AuditLog(
+                    actor_user_id=actor_id,
+                    chat_id=chat_id,
+                    action=f"chat_{status}",
+                    target_type="chat",
+                    target_id=str(chat_id),
+                    details_json="{}",
+                    created_at=now_utc(),
+                )
+            )
+            return chat
+
     async def users(self) -> list[User]:
         async with self.database.session() as session:
             result = await session.scalars(select(User).order_by(User.status, User.created_at))
+            return list(result)
+
+    async def chats(self) -> list[Chat]:
+        async with self.database.session() as session:
+            result = await session.scalars(select(Chat).order_by(Chat.status, Chat.created_at))
             return list(result)
 
     async def approved_editors(self) -> list[User]:

@@ -99,3 +99,27 @@ async def user_approval_callback(update: Update, context: ContextTypes.DEFAULT_T
         await context.bot.send_message(user.telegram_user_id, text)
     except Exception:
         pass
+
+
+async def chat_approval_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None or query.data is None:
+        return
+    await query.answer()
+    access = await require_access(update, context, command="chats")
+    if access is None:
+        return
+    if access.user.role != "admin":
+        await query.answer("Только root-admin.", show_alert=True)
+        return
+    _, action, raw_id = query.data.split(":", 2)
+    chat_id = int(raw_id)
+    status = "approved" if action == "a" else "rejected"
+    chat = await services(context).access.decide_chat(
+        access.user.telegram_user_id,
+        chat_id,
+        status=status,
+    )
+    await query.edit_message_text(
+        f"Чат <code>{chat.chat_id}</code>\nРешение: {html.escape(chat.status)}"
+    )

@@ -7,7 +7,7 @@ import pytest
 from telegram.error import BadRequest
 
 from meeting_bot.access import AccessService
-from meeting_bot.handlers import admin, callbacks, commands
+from meeting_bot.handlers import admin, callbacks, commands, common
 
 
 class FakeMessage:
@@ -119,6 +119,28 @@ async def test_pending_user_saved_when_root_admin_chat_is_missing(
     assert any("Telegram chat not found" in record.message for record in caplog.records)
 
 
+async def test_pending_group_chat_saved_when_root_admin_chat_is_missing(
+    database, app_config, caplog
+) -> None:
+    service = AccessService(database, app_config)
+    await service.ensure_root_admin()
+    update = make_update(user_id=2, chat_id=-100, chat_type="supergroup")
+    context = make_context(service, app_config, AdminChatNotFoundBot())
+
+    with caplog.at_level(logging.WARNING):
+        await common.require_access(update, context, command="summary")
+
+    chats = await service.chats()
+    group = next(chat for chat in chats if chat.chat_id == -100)
+    assert group.status == "pending"
+    assert update.effective_message.replies == [
+        "Этот чат пока не одобрен. Администратор еще не открыл диалог с ботом или "
+        "admin_user_id настроен неверно. Заявка сохранена."
+    ]
+    assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+    assert any("Telegram chat not found" in record.message for record in caplog.records)
+
+
 async def test_root_admin_start_mentions_saved_pending_users(database, app_config) -> None:
     service = AccessService(database, app_config)
     await service.ensure_root_admin()
@@ -197,6 +219,8 @@ async def test_help_in_group_shows_only_group_safe_commands(
     user_id = 1 if role == "admin" else 2
     if role == "editor":
         await approve_user(service, "editor", user_id=user_id)
+    await service.observe_group_chat(chat_id=-100, chat_type="supergroup", chat_title="Group")
+    await service.decide_chat(1, -100, status="approved")
     update = make_update(user_id=user_id, chat_id=-100, chat_type="supergroup")
     context = make_context(service, app_config, QuietBot())
 
@@ -242,6 +266,31 @@ async def test_approve_command_sync_failure_does_not_break_approval(
     )
 
 
+async def test_chat_approval_commands_update_chat_status(database, app_config) -> None:
+    service = AccessService(database, app_config)
+    await service.ensure_root_admin()
+    await service.observe_group_chat(chat_id=-100, chat_type="supergroup", chat_title="Group")
+    update = make_update(user_id=1, username="admin", full_name="Root Admin")
+    context = make_context(service, app_config, QuietBot(), args=["-100"])
+
+    await admin.approve_chat_command(update, context)
+
+    chats = await service.chats()
+    group = next(chat for chat in chats if chat.chat_id == -100)
+    assert group.status == "approved"
+    assert update.effective_message.replies == ["Чат -100: approved."]
+
+    update = make_update(user_id=1, username="admin", full_name="Root Admin")
+    context = make_context(service, app_config, QuietBot(), args=["-100"])
+
+    await admin.reject_chat_command(update, context)
+
+    chats = await service.chats()
+    group = next(chat for chat in chats if chat.chat_id == -100)
+    assert group.status == "rejected"
+    assert update.effective_message.replies == ["Чат -100: rejected."]
+
+
 async def test_user_approval_callback_syncs_target_command_menu(database, app_config) -> None:
     service = AccessService(database, app_config)
     await service.ensure_root_admin()
@@ -269,3 +318,19 @@ async def test_user_approval_callback_syncs_target_command_menu(database, app_co
     assert update.callback_query.edits == [
         "Пользователь <code>2</code>\nРешение: approved"
     ]
+
+
+async def test_chat_approval_callback_updates_chat_status(database, app_config) -> None:
+    service = AccessService(database, app_config)
+    await service.ensure_root_admin()
+    await service.observe_group_chat(chat_id=-100, chat_type="supergroup", chat_title="Group")
+    bot = QuietBot()
+    update = make_callback_update(user_id=1, data="c:a:-100")
+    context = make_context(service, app_config, bot)
+
+    await callbacks.chat_approval_callback(update, context)
+
+    chats = await service.chats()
+    group = next(chat for chat in chats if chat.chat_id == -100)
+    assert group.status == "approved"
+    assert update.callback_query.edits == ["Чат <code>-100</code>\nРешение: approved"]

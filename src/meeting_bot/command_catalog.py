@@ -60,8 +60,15 @@ COMMANDS: dict[str, CommandSpec] = {
         "cancel", "Отменить предложение", "/cancel ID — отменить предложение", "edit"
     ),
     "users": CommandSpec("users", "Пользователи", "/users — список пользователей", "admin"),
+    "chats": CommandSpec("chats", "Чаты", "/chats — список чатов", "admin"),
     "approve": CommandSpec(
         "approve", "Одобрить пользователя", "/approve ID viewer|editor — одобрить", "admin"
+    ),
+    "approve_chat": CommandSpec(
+        "approve_chat", "Одобрить чат", "/approve_chat CHAT_ID — одобрить чат", "admin"
+    ),
+    "reject_chat": CommandSpec(
+        "reject_chat", "Отклонить чат", "/reject_chat CHAT_ID — отклонить чат", "admin"
     ),
     "reject": CommandSpec("reject", "Отклонить пользователя", "/reject ID — отклонить", "admin"),
     "block_user": CommandSpec(
@@ -99,7 +106,10 @@ EDITOR_PRIVATE_COMMANDS = (*VIEWER_PRIVATE_COMMANDS, "update", "pending", "cance
 ADMIN_PRIVATE_COMMANDS = (
     *EDITOR_PRIVATE_COMMANDS,
     "users",
+    "chats",
     "approve",
+    "approve_chat",
+    "reject_chat",
     "reject",
     "block_user",
     "unblock_user",

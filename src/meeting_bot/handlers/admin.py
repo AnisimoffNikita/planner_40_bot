@@ -39,6 +39,21 @@ async def users_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await send_long(update.effective_message, "\n".join(lines))
 
 
+async def chats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if await _require_admin(update, context, "chats") is None:
+        return
+    chats = await services(context).access.chats()
+    lines = ["<b>Чаты</b>"]
+    lines.extend(
+        f"• <code>{chat.chat_id}</code> "
+        f"{html.escape(chat.title or '—')} — "
+        f"{html.escape(chat.chat_type)}/{html.escape(chat.status)}"
+        + (" read-only" if chat.read_only else "")
+        for chat in chats
+    )
+    await send_long(update.effective_message, "\n".join(lines))
+
+
 async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     access = await _require_admin(update, context, "approve")
     if access is None:
@@ -59,6 +74,14 @@ async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 async def reject_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _user_status_command(update, context, "reject", "rejected")
+
+
+async def approve_chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _chat_decision_command(update, context, "approve_chat", "approved")
+
+
+async def reject_chat_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await _chat_decision_command(update, context, "reject_chat", "rejected")
 
 
 async def block_user_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -113,6 +136,21 @@ async def _chat_status_command(
         return
     chat = await services(context).access.set_chat_blocked(
         access.user.telegram_user_id, int(context.args[0]), blocked
+    )
+    await update.effective_message.reply_text(f"Чат {chat.chat_id}: {chat.status}.")
+
+
+async def _chat_decision_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, command: str, status: str
+) -> None:
+    access = await _require_admin(update, context, command)
+    if access is None:
+        return
+    if len(context.args) != 1 or not context.args[0].lstrip("-").isdigit():
+        await update.effective_message.reply_text(f"Формат: /{command} CHAT_ID")
+        return
+    chat = await services(context).access.decide_chat(
+        access.user.telegram_user_id, int(context.args[0]), status=status
     )
     await update.effective_message.reply_text(f"Чат {chat.chat_id}: {chat.status}.")
 

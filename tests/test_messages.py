@@ -56,20 +56,32 @@ class FakeVoice:
 
 
 class FakeBot:
+    def __init__(self, username: str = "Planner40Bot") -> None:
+        self.username = username
+        self.messages: list[tuple[int, str]] = []
+
     async def get_file(self, file_id: str) -> object:
         return SimpleNamespace(file_id=file_id)
+
+    async def get_me(self) -> object:
+        return SimpleNamespace(username=self.username)
+
+    async def send_message(self, *args: object, **kwargs: object) -> None:
+        self.messages.append((int(args[0]), str(args[1])))
 
 
 class FakeServices:
     def __init__(
         self,
         *,
+        config: object | None = None,
         access: AccessService,
         cards: object,
         loaded_schema: object,
         llm: FakeLlm,
         voice: FakeVoice | None = None,
     ) -> None:
+        self.config = config
         self.access = access
         self.cards = cards
         self.loaded_schema = loaded_schema
@@ -116,6 +128,17 @@ def update_intent(*operations: PatchOperation) -> IntentResult:
     )
 
 
+def question_intent(answer: str = "Ответ по карточке.") -> IntentResult:
+    return IntentResult(
+        intent="question",
+        confidence=0.95,
+        answer=answer,
+        patches=[],
+        needs_clarification=False,
+        clarification_question=None,
+    )
+
+
 async def access_for(
     database: object,
     app_config: object,
@@ -143,6 +166,16 @@ async def access_for(
         chat_type=chat_type,
         chat_title="Chat",
     )
+    if chat_type in {"group", "supergroup"}:
+        await service.decide_chat(1, chat_id, status="approved")
+        access = await service.observe(
+            user_id=2,
+            username="user",
+            full_name="User",
+            chat_id=chat_id,
+            chat_type=chat_type,
+            chat_title="Chat",
+        )
     return service, access
 
 
@@ -263,7 +296,7 @@ async def test_invalid_llm_patch_gets_user_facing_reply(
     assert "нужно выбрать конкретный экземпляр" in message.replies[0][0]
 
 
-async def test_group_text_message_cannot_create_patch(
+async def test_group_text_without_tag_is_ignored(
     database,
     app_config,
     card_service,
@@ -290,8 +323,214 @@ async def test_group_text_message_cannot_create_patch(
         context_with_services(services),
     )
 
-    assert message.replies == [("В группах карточку менять нельзя. Напиши мне в личку.", {})]
+    assert message.replies == []
     assert llm.calls == []
+
+
+async def test_group_tagged_question_calls_llm_with_stripped_text(
+    database,
+    app_config,
+    card_service,
+    loaded_schema,
+) -> None:
+    access_service, _ = await access_for(
+        database,
+        app_config,
+        role="viewer",
+        chat_id=-100,
+        chat_type="supergroup",
+    )
+    llm = FakeLlm(question_intent("Главный спикер: Иван."))
+    services = FakeServices(
+        access=access_service,
+        cards=card_service,
+        loaded_schema=loaded_schema,
+        llm=llm,
+    )
+    message = FakeMessage("@Planner40Bot, кто главный спикер?")
+
+    await messages.text_message(
+        update_with_message(message, user_id=42, chat_id=-100, chat_type="supergroup"),
+        context_with_services(services),
+    )
+
+    assert llm.calls[0]["text"] == "кто главный спикер?"
+    assert llm.calls[0]["role"] == "viewer"
+    assert message.replies == [("Главный спикер: Иван.", {})]
+    assert [user.telegram_user_id for user in await access_service.users()] == [1, 2]
+
+
+async def test_group_mention_matching_is_case_insensitive_and_exact(
+    database,
+    app_config,
+    card_service,
+    loaded_schema,
+) -> None:
+    access_service, _ = await access_for(
+        database,
+        app_config,
+        role="viewer",
+        chat_id=-100,
+        chat_type="supergroup",
+    )
+    llm = FakeLlm(question_intent())
+    services = FakeServices(
+        access=access_service,
+        cards=card_service,
+        loaded_schema=loaded_schema,
+        llm=llm,
+    )
+    wrong = FakeMessage("@Planner40BotX кто главный спикер?")
+    right = FakeMessage("@planner40bot: кто главный спикер?")
+
+    await messages.text_message(
+        update_with_message(wrong, user_id=42, chat_id=-100, chat_type="supergroup"),
+        context_with_services(services),
+    )
+    await messages.text_message(
+        update_with_message(right, user_id=42, chat_id=-100, chat_type="supergroup"),
+        context_with_services(services),
+    )
+
+    assert wrong.replies == []
+    assert len(llm.calls) == 1
+    assert llm.calls[0]["text"] == "кто главный спикер?"
+
+
+async def test_group_empty_tag_does_not_call_llm(
+    database,
+    app_config,
+    card_service,
+    loaded_schema,
+) -> None:
+    access_service, _ = await access_for(
+        database,
+        app_config,
+        role="viewer",
+        chat_id=-100,
+        chat_type="supergroup",
+    )
+    llm = FakeLlm(question_intent())
+    services = FakeServices(
+        access=access_service,
+        cards=card_service,
+        loaded_schema=loaded_schema,
+        llm=llm,
+    )
+    message = FakeMessage("@Planner40Bot")
+
+    await messages.text_message(
+        update_with_message(message, user_id=42, chat_id=-100, chat_type="supergroup"),
+        context_with_services(services),
+    )
+
+    assert message.replies == [("Напиши вопрос после @BOTNAME.", {})]
+    assert llm.calls == []
+
+
+async def test_pending_group_chat_does_not_call_llm_and_notifies_admin(
+    database,
+    app_config,
+    card_service,
+    loaded_schema,
+) -> None:
+    access_service = AccessService(database, app_config)
+    await access_service.ensure_root_admin()
+    llm = FakeLlm(question_intent())
+    services = FakeServices(
+        config=app_config,
+        access=access_service,
+        cards=card_service,
+        loaded_schema=loaded_schema,
+        llm=llm,
+    )
+    message = FakeMessage("@Planner40Bot кто главный спикер?")
+    context = context_with_services(services)
+
+    await messages.text_message(
+        update_with_message(message, user_id=42, chat_id=-100, chat_type="supergroup"),
+        context,
+    )
+
+    assert "Этот чат пока не одобрен" in message.replies[0][0]
+    assert llm.calls == []
+    assert context.bot.messages[0][0] == app_config.telegram.admin_user_id
+    assert "Новая заявка чата" in context.bot.messages[0][1]
+
+
+async def test_blocked_user_in_group_does_not_call_llm(
+    database,
+    app_config,
+    card_service,
+    loaded_schema,
+) -> None:
+    access_service, _ = await access_for(
+        database,
+        app_config,
+        role="viewer",
+        chat_id=-100,
+        chat_type="supergroup",
+    )
+    await access_service.observe(
+        user_id=42,
+        username="blocked",
+        full_name="Blocked",
+        chat_id=42,
+        chat_type="private",
+        chat_title=None,
+    )
+    await access_service.decide_user(1, 42, status="blocked")
+    llm = FakeLlm(question_intent())
+    services = FakeServices(
+        access=access_service,
+        cards=card_service,
+        loaded_schema=loaded_schema,
+        llm=llm,
+    )
+    message = FakeMessage("@Planner40Bot кто главный спикер?")
+
+    await messages.text_message(
+        update_with_message(message, user_id=42, chat_id=-100, chat_type="supergroup"),
+        context_with_services(services),
+    )
+
+    assert message.replies == [("Доступ заблокирован. Обратитесь к администратору.", {})]
+    assert llm.calls == []
+
+
+async def test_group_tagged_update_is_read_only(
+    database,
+    app_config,
+    card_service,
+    loaded_schema,
+) -> None:
+    access_service, _ = await access_for(
+        database,
+        app_config,
+        role="editor",
+        chat_id=-100,
+        chat_type="supergroup",
+    )
+    llm = FakeLlm(
+        update_intent(
+            PatchOperation(op="set_field", block_id="speaker", field_id="name", value="Иван")
+        )
+    )
+    services = FakeServices(
+        access=access_service,
+        cards=card_service,
+        loaded_schema=loaded_schema,
+        llm=llm,
+    )
+    message = FakeMessage("@Planner40Bot поставь спикера Иван")
+
+    await messages.text_message(
+        update_with_message(message, chat_id=-100, chat_type="supergroup"),
+        context_with_services(services),
+    )
+
+    assert message.replies == [("У тебя доступ read-only; изменить карточку нельзя.", {})]
+    assert await card_service.pending_for_user(2) == []
 
 
 async def test_voice_message_reuses_natural_text_flow(

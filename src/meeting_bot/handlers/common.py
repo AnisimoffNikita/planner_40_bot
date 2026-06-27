@@ -20,6 +20,12 @@ PENDING_ACCESS_ADMIN_UNREACHABLE = (
     "Ты пока не одобрен. Администратор еще не открыл диалог с ботом или "
     "admin_user_id настроен неверно. Заявка сохранена."
 )
+PENDING_CHAT_SENT = "Этот чат пока не одобрен. Я отправил заявку администратору."
+PENDING_CHAT_SAVED = "Этот чат пока не одобрен. Заявка сохранена и ожидает решения администратора."
+PENDING_CHAT_ADMIN_UNREACHABLE = (
+    "Этот чат пока не одобрен. Администратор еще не открыл диалог с ботом или "
+    "admin_user_id настроен неверно. Заявка сохранена."
+)
 
 
 async def observe_access(
@@ -41,6 +47,18 @@ async def observe_access(
     if access.is_new_user and access.user.status == "pending":
         delivered = await _notify_root_admin_about_new_user(update, context, user.id)
         access = replace(access, admin_notification_delivered=delivered)
+    if (
+        access.is_new_chat
+        and access.chat.chat_type in {"group", "supergroup"}
+        and access.chat.status == "pending"
+    ):
+        delivered = await notify_root_admin_about_new_chat(
+            context,
+            chat_id=access.chat.chat_id,
+            chat_type=access.chat.chat_type,
+            chat_title=access.chat.title,
+        )
+        access = replace(access, chat_notification_delivered=delivered)
     return access
 
 
@@ -51,6 +69,7 @@ async def require_access(
     approved: bool = True,
     editable: bool = False,
     command: str | None = None,
+    allow_group_read_only: bool = False,
 ) -> AccessContext | None:
     access = await observe_access(update, context)
     message = update.effective_message
@@ -62,11 +81,20 @@ async def require_access(
         )
         await message.reply_text("Доступ заблокирован. Обратитесь к администратору.")
         return None
-    if access.chat.chat_type in {"group", "supergroup"} and command not in SAFE_GROUP_COMMANDS:
+    if (
+        access.chat.chat_type in {"group", "supergroup"}
+        and command not in SAFE_GROUP_COMMANDS
+        and not allow_group_read_only
+    ):
         await message.reply_text("В группах карточку менять нельзя. Напиши мне в личку.")
         return None
     if approved and not access.approved:
-        if access.user.status == "pending":
+        if access.chat.chat_type in {"group", "supergroup"}:
+            if access.chat.status == "pending":
+                await message.reply_text(pending_chat_message(access))
+            else:
+                await message.reply_text("Этот чат не одобрен. Обратитесь к администратору.")
+        elif access.user.status == "pending":
             await message.reply_text(pending_access_message(access))
         else:
             await message.reply_text("Доступ не одобрен. Обратитесь к администратору.")
@@ -117,6 +145,14 @@ def pending_access_message(access: AccessContext) -> str:
     return PENDING_ACCESS_SAVED
 
 
+def pending_chat_message(access: AccessContext) -> str:
+    if access.chat_notification_delivered is True:
+        return PENDING_CHAT_SENT
+    if access.chat_notification_delivered is False:
+        return PENDING_CHAT_ADMIN_UNREACHABLE
+    return PENDING_CHAT_SAVED
+
+
 async def _notify_root_admin_about_new_user(
     update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int
 ) -> bool:
@@ -154,6 +190,47 @@ async def _notify_root_admin_about_new_user(
         return False
     except Exception:
         logger.exception("Failed to notify root admin about a new user")
+        return False
+    return True
+
+
+async def notify_root_admin_about_new_chat(
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    chat_id: int,
+    chat_type: str,
+    chat_title: str | None,
+) -> bool:
+    services = context.application.bot_data["services"]
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("Approve chat", callback_data=f"c:a:{chat_id}"),
+                InlineKeyboardButton("Reject", callback_data=f"c:r:{chat_id}"),
+            ]
+        ]
+    )
+    try:
+        await context.bot.send_message(
+            services.config.telegram.admin_user_id,
+            f"Новая заявка чата: {html.escape(chat_title or '—')}\n"
+            f"ID: <code>{chat_id}</code>\n"
+            f"Тип: <code>{html.escape(chat_type)}</code>",
+            reply_markup=keyboard,
+        )
+    except BadRequest as exc:
+        if "chat not found" in str(exc).lower():
+            logger.warning(
+                "Could not notify root admin %s about new chat %s: Telegram chat not found. "
+                "Root admin must send /start to the bot first, or telegram.admin_user_id is wrong.",
+                services.config.telegram.admin_user_id,
+                chat_id,
+            )
+            return False
+        logger.exception("Failed to notify root admin about a new chat")
+        return False
+    except Exception:
+        logger.exception("Failed to notify root admin about a new chat")
         return False
     return True
 

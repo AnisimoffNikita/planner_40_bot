@@ -47,6 +47,8 @@ def test_private_command_specs_follow_role_and_status() -> None:
     ]
     assert "update" in [spec.name for spec in private_command_specs("editor", "approved")]
     assert "users" in [spec.name for spec in private_command_specs("admin", "approved")]
+    assert "chats" in [spec.name for spec in private_command_specs("admin", "approved")]
+    assert "approve_chat" in [spec.name for spec in private_command_specs("admin", "approved")]
     assert [spec.name for spec in private_command_specs("admin", "blocked")] == [
         "start",
         "whoami",
