@@ -2,17 +2,26 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from telegram import MessageEntity
 from telegram.constants import ChatAction
 
 from meeting_bot.access import AccessContext, AccessService
 from meeting_bot.domain import IntentResult, PatchOperation
-from meeting_bot.handlers import messages
+from meeting_bot.handlers import commands, messages
 
 
 class FakeMessage:
-    def __init__(self, text: str | None = None, voice: object | None = None) -> None:
+    def __init__(
+        self,
+        text: str | None = None,
+        voice: object | None = None,
+        entities: list[MessageEntity] | None = None,
+        reply_to_message: object | None = None,
+    ) -> None:
         self.text = text
         self.voice = voice
+        self.entities = entities or []
+        self.reply_to_message = reply_to_message
         self.replies: list[tuple[str, dict[str, object]]] = []
         self.documents: list[object] = []
 
@@ -116,10 +125,11 @@ def update_with_message(
     )
 
 
-def context_with_services(services: FakeServices) -> object:
+def context_with_services(services: FakeServices, args: list[str] | None = None) -> object:
     return SimpleNamespace(
         application=SimpleNamespace(bot_data={"services": services}),
         bot=FakeBot(),
+        args=args or [],
     )
 
 
@@ -407,6 +417,73 @@ async def test_group_mention_matching_is_case_insensitive_and_exact(
     assert wrong.replies == []
     assert len(llm.calls) == 1
     assert llm.calls[0]["text"] == "кто главный спикер?"
+
+
+async def test_group_mention_entity_can_address_bot_outside_prefix(
+    database,
+    app_config,
+    card_service,
+    loaded_schema,
+) -> None:
+    access_service, _ = await access_for(
+        database,
+        app_config,
+        role="viewer",
+        chat_id=-100,
+        chat_type="supergroup",
+    )
+    llm = FakeLlm(question_intent("Главный спикер: Иван."))
+    services = FakeServices(
+        access=access_service,
+        cards=card_service,
+        loaded_schema=loaded_schema,
+        llm=llm,
+    )
+    text = "Кстати, @planner40bot: кто спикер?"
+    message = FakeMessage(
+        text,
+        entities=[MessageEntity(type=MessageEntity.MENTION, offset=8, length=13)],
+    )
+
+    await messages.text_message(
+        update_with_message(message, user_id=42, chat_id=-100, chat_type="supergroup"),
+        context_with_services(services),
+    )
+
+    assert llm.calls[0]["text"] == "Кстати кто спикер?"
+    assert message.replies == [("Главный спикер: Иван.", {})]
+
+
+async def test_group_ask_command_calls_read_only_llm(
+    database,
+    app_config,
+    card_service,
+    loaded_schema,
+) -> None:
+    access_service, _ = await access_for(
+        database,
+        app_config,
+        role="viewer",
+        chat_id=-100,
+        chat_type="supergroup",
+    )
+    llm = FakeLlm(question_intent("Главный спикер: Иван."))
+    services = FakeServices(
+        access=access_service,
+        cards=card_service,
+        loaded_schema=loaded_schema,
+        llm=llm,
+    )
+    message = FakeMessage("/ask кто спикер?")
+
+    await commands.ask_command(
+        update_with_message(message, user_id=42, chat_id=-100, chat_type="supergroup"),
+        context_with_services(services, args=["кто", "спикер?"]),
+    )
+
+    assert llm.calls[0]["text"] == "кто спикер?"
+    assert llm.calls[0]["role"] == "viewer"
+    assert message.replies == [("Главный спикер: Иван.", {})]
 
 
 async def test_group_empty_tag_does_not_call_llm(

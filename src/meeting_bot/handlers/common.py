@@ -16,7 +16,7 @@ from meeting_bot.access import AccessContext
 
 logger = logging.getLogger(__name__)
 MAX_MESSAGE = 3900
-SAFE_GROUP_COMMANDS = {"help", "status", "summary"}
+SAFE_GROUP_COMMANDS = {"ask", "help", "status", "summary"}
 PENDING_ACCESS_SENT = "Ты пока не одобрен. Я отправил заявку администратору."
 PENDING_ACCESS_SAVED = "Ты пока не одобрен. Заявка сохранена и ожидает решения администратора."
 PENDING_ACCESS_ADMIN_UNREACHABLE = (

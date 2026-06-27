@@ -86,13 +86,15 @@ SQLite работает с `foreign_keys=ON`, WAL и `busy_timeout`. Для ре
 
 Новый пользователь создается как `pending`; root-admin получает inline-кнопки
 Viewer/Editor/Reject. До approval и после block ни текст, ни голос не отправляются
-в AITUNNEL. Группы всегда read-only и принимают только `/status`, `/summary`,
-`/help` от approved-пользователей.
+в AITUNNEL. Группы всегда read-only и принимают `/status`, `/summary`, `/help`,
+`/ask вопрос`, а также обращения вида `@planner40bot вопрос`, если Telegram
+доставляет такие сообщения боту. При включенном BotFather Privacy Mode надежнее
+использовать `/ask`, потому что slash-команды доставляются всегда.
 
 ## Команды
 
 - `/start`, `/help`, `/whoami`
-- `/status`, `/summary`, `/history [YYYY-WW]`, `/schema`
+- `/status`, `/summary`, `/ask ТЕКСТ`, `/history [YYYY-WW]`, `/schema`
 - `/update` — кнопочный интерфейс обновления карточки
 - `/pending`, `/cancel ID`
 - admin: `/users`, `/approve ID viewer|editor`, `/reject ID`,

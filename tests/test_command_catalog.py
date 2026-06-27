@@ -42,6 +42,7 @@ def test_private_command_specs_follow_role_and_status() -> None:
         "whoami",
         "status",
         "summary",
+        "ask",
         "history",
         "schema",
     ]
@@ -53,7 +54,7 @@ def test_private_command_specs_follow_role_and_status() -> None:
         "start",
         "whoami",
     ]
-    assert [spec.name for spec in group_command_specs()] == ["help", "status", "summary"]
+    assert [spec.name for spec in group_command_specs()] == ["help", "status", "summary", "ask"]
 
 
 async def test_sync_all_command_menus_sets_default_and_per_user_scopes() -> None:
@@ -69,7 +70,7 @@ async def test_sync_all_command_menus_sets_default_and_per_user_scopes() -> None
     assert len(bot.calls) == 5
     group_commands, group_scope = bot.calls[0]
     assert isinstance(group_scope, BotCommandScopeAllGroupChats)
-    assert command_names(group_commands) == ["help", "status", "summary"]
+    assert command_names(group_commands) == ["help", "status", "summary", "ask"]
 
     private_commands, private_scope = bot.calls[1]
     assert isinstance(private_scope, BotCommandScopeAllPrivateChats)

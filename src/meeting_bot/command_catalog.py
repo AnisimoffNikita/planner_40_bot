@@ -48,6 +48,7 @@ COMMANDS: dict[str, CommandSpec] = {
         "status", "PDF текущей карточки", "/status — PDF текущей карточки", "base"
     ),
     "summary": CommandSpec("summary", "Краткий статус", "/summary — краткий статус", "base"),
+    "ask": CommandSpec("ask", "Вопрос по карточке", "/ask ТЕКСТ — вопрос по карточке", "base"),
     "history": CommandSpec("history", "Архив карточек", "/history [YYYY-WW] — архив", "base"),
     "schema": CommandSpec("schema", "Текущая схема", "/schema — версия и блоки", "base"),
     "update": CommandSpec(
@@ -99,6 +100,7 @@ VIEWER_PRIVATE_COMMANDS = (
     "whoami",
     "status",
     "summary",
+    "ask",
     "history",
     "schema",
 )
@@ -117,7 +119,7 @@ ADMIN_PRIVATE_COMMANDS = (
     "unblock_chat",
     "audit",
 )
-GROUP_COMMANDS = ("help", "status", "summary")
+GROUP_COMMANDS = ("help", "status", "summary", "ask")
 
 SECTION_TITLES = {
     "base": "Команды",

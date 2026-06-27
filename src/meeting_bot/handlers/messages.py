@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import html
 import json
+import logging
 import re
 
-from telegram import Update
+from telegram import MessageEntity, Update
 from telegram.ext import ContextTypes
 
 from meeting_bot.card_service import DomainError
@@ -19,6 +20,7 @@ from meeting_bot.llm_client import LlmUnavailable
 
 GROUP_MENTION_RE = re.compile(r"^@(?P<username>[A-Za-z0-9_]+)(?P<tail>$|[\s,:]+)")
 ACTIVE_BOT_CHAT_STATUSES = {"member", "administrator"}
+logger = logging.getLogger(__name__)
 
 
 def services(context: ContextTypes.DEFAULT_TYPE) -> object:
@@ -32,7 +34,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     if chat.type in {"group", "supergroup"}:
-        group_text = await tagged_group_text(context, message.text)
+        group_text = await addressed_group_text(context, message)
         if group_text is None:
             return
         access = await require_access(update, context, allow_group_read_only=True)
@@ -196,14 +198,62 @@ async def process_natural_text(
             await message.reply_text("Я не уверен, что именно нужно. Уточни запрос.")
 
 
-async def tagged_group_text(context: ContextTypes.DEFAULT_TYPE, text: str) -> str | None:
+async def addressed_group_text(
+    context: ContextTypes.DEFAULT_TYPE, message: object
+) -> str | None:
+    text = getattr(message, "text", None)
+    if not text:
+        return None
     username = await bot_username(context)
     if username is None:
         return None
+
+    entity_text = text_from_bot_mention_entity(message, text, username)
+    if entity_text is not None:
+        return entity_text
+
+    if is_reply_to_bot(message, username):
+        return text.strip()
+
+    return tagged_group_text(username, text)
+
+
+def tagged_group_text(username: str, text: str) -> str | None:
     match = GROUP_MENTION_RE.match(text.strip())
     if match is None or match.group("username").casefold() != username.casefold():
         return None
     return text.strip()[match.end() :].lstrip(" \t\r\n,:")
+
+
+def text_from_bot_mention_entity(message: object, text: str, username: str) -> str | None:
+    entities = getattr(message, "entities", None) or []
+    for entity in entities:
+        if getattr(entity, "type", None) != MessageEntity.MENTION:
+            continue
+        start, end = utf16_entity_bounds(text, entity)
+        mention = text[start:end]
+        if not mention.startswith("@") or mention[1:].casefold() != username.casefold():
+            continue
+        before = text[:start].rstrip(" \t\r\n,:")
+        after = text[end:].lstrip(" \t\r\n,:")
+        return " ".join(part for part in (before, after) if part)
+    return None
+
+
+def is_reply_to_bot(message: object, username: str) -> bool:
+    reply = getattr(message, "reply_to_message", None)
+    author = getattr(reply, "from_user", None)
+    author_username = getattr(author, "username", None)
+    return bool(author_username and str(author_username).casefold() == username.casefold())
+
+
+def utf16_entity_bounds(text: str, entity: MessageEntity) -> tuple[int, int]:
+    offset = int(entity.offset)
+    length = int(entity.length)
+    encoded = text.encode("utf-16-le")
+    start = len(encoded[: offset * 2].decode("utf-16-le"))
+    end = len(encoded[: (offset + length) * 2].decode("utf-16-le"))
+    return start, end
 
 
 async def bot_username(context: ContextTypes.DEFAULT_TYPE) -> str | None:
@@ -213,7 +263,11 @@ async def bot_username(context: ContextTypes.DEFAULT_TYPE) -> str | None:
     get_me = getattr(context.bot, "get_me", None)
     if get_me is None:
         return None
-    me = await get_me()
+    try:
+        me = await get_me()
+    except Exception:
+        logger.warning("Could not resolve bot username via get_me", exc_info=True)
+        return None
     username = getattr(me, "username", None)
     if not username:
         return None

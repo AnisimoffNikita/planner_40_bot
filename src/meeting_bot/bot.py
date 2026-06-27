@@ -139,6 +139,7 @@ def build_application(config: AppConfig, loaded_schema: LoadedSchema) -> Applica
         "whoami": commands.whoami,
         "status": commands.status_command,
         "summary": commands.summary_command,
+        "ask": commands.ask_command,
         "history": commands.history_command,
         "schema": commands.schema_command,
         "update": update_wizard.update_command,

@@ -117,6 +117,24 @@ async def summary_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await update.effective_message.reply_text(text, reply_markup=keyboard)
 
 
+async def ask_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    access = await require_access(
+        update,
+        context,
+        command="ask",
+        allow_group_read_only=True,
+    )
+    if access is None:
+        return
+    text = " ".join(context.args or []).strip()
+    if not text:
+        await update.effective_message.reply_text("Формат: /ask вопрос по карточке")
+        return
+    from meeting_bot.handlers.messages import process_natural_text
+
+    await process_natural_text(update, context, access, text)
+
+
 async def history_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if await require_access(update, context, command="history") is None:
         return
