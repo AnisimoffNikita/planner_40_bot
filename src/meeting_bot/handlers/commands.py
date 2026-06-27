@@ -6,8 +6,10 @@ import re
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from meeting_bot.domain import UserStatus
 from meeting_bot.handlers.common import (
     format_status_fields,
+    pending_access_message,
     pending_keyboard,
     require_access,
     send_long,
@@ -30,12 +32,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if message is None:
         return
     if access.approved:
-        await message.reply_text(
+        text = (
             f"Доступ активен: <b>{html.escape(access.user.role)}</b>. "
             "Используй /help, чтобы увидеть команды."
         )
+        if access.user.role == "admin":
+            pending_count = sum(
+                1
+                for user in await services(context).access.users()
+                if user.status == UserStatus.PENDING.value
+            )
+            if pending_count:
+                text += f"\n\nОжидают решения заявки: {pending_count}. Открой /users."
+        await message.reply_text(text)
     elif access.user.status == "pending":
-        await message.reply_text("Ты пока не одобрен. Я отправил заявку администратору.")
+        await message.reply_text(pending_access_message(access))
     else:
         await message.reply_text("Доступ не одобрен. Обратитесь к администратору.")
 

@@ -10,10 +10,58 @@ from meeting_bot.models import ClarificationSession
 from meeting_bot.schema import MeetingSchema
 from meeting_bot.storage import Database
 
+PATCH_OPERATION_VALUES = ["set_field", "add_entry", "delete_entry", "clear_field", "clear_block"]
+
+INTENT_RESPONSE_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "intent",
+        "confidence",
+        "answer",
+        "patches",
+        "needs_clarification",
+        "clarification_question",
+    ],
+    "properties": {
+        "intent": {
+            "type": "string",
+            "enum": ["question", "show_status", "show_history", "propose_update", "unknown"],
+        },
+        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "answer": {"type": ["string", "null"]},
+        "needs_clarification": {"type": "boolean"},
+        "clarification_question": {"type": ["string", "null"]},
+        "patches": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": [
+                    "op",
+                    "block_id",
+                    "entry_id",
+                    "field_id",
+                    "value",
+                    "human_label",
+                ],
+                "properties": {
+                    "op": {"type": "string", "enum": PATCH_OPERATION_VALUES},
+                    "block_id": {"type": "string"},
+                    "entry_id": {"type": ["string", "null"]},
+                    "field_id": {"type": ["string", "null"]},
+                    "value": {"type": ["string", "null"]},
+                    "human_label": {"type": "string"},
+                },
+            },
+        },
+    },
+}
+
 INTENT_JSON_SCHEMA = {
     "name": "meeting_intent",
     "strict": True,
-    "schema": IntentResult.model_json_schema(),
+    "schema": INTENT_RESPONSE_SCHEMA,
 }
 
 

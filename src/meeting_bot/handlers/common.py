@@ -3,8 +3,10 @@ from __future__ import annotations
 import html
 import logging
 from collections.abc import Sequence
+from dataclasses import replace
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from meeting_bot.access import AccessContext
@@ -12,6 +14,12 @@ from meeting_bot.access import AccessContext
 logger = logging.getLogger(__name__)
 MAX_MESSAGE = 3900
 SAFE_GROUP_COMMANDS = {"help", "status", "summary"}
+PENDING_ACCESS_SENT = "Ты пока не одобрен. Я отправил заявку администратору."
+PENDING_ACCESS_SAVED = "Ты пока не одобрен. Заявка сохранена и ожидает решения администратора."
+PENDING_ACCESS_ADMIN_UNREACHABLE = (
+    "Ты пока не одобрен. Администратор еще не открыл диалог с ботом или "
+    "admin_user_id настроен неверно. Заявка сохранена."
+)
 
 
 async def observe_access(
@@ -31,25 +39,8 @@ async def observe_access(
         chat_title=chat.title,
     )
     if access.is_new_user and access.user.status == "pending":
-        keyboard = InlineKeyboardMarkup(
-            [
-                [
-                    InlineKeyboardButton("Viewer", callback_data=f"u:v:{user.id}"),
-                    InlineKeyboardButton("Editor", callback_data=f"u:e:{user.id}"),
-                ],
-                [InlineKeyboardButton("Reject", callback_data=f"u:r:{user.id}")],
-            ]
-        )
-        try:
-            await context.bot.send_message(
-                services.config.telegram.admin_user_id,
-                f"Новая заявка: {html.escape(user.full_name)}\n"
-                f"ID: <code>{user.id}</code>\n"
-                f"Username: @{html.escape(user.username or '—')}",
-                reply_markup=keyboard,
-            )
-        except Exception:
-            logger.exception("Failed to notify root admin about a new user")
+        delivered = await _notify_root_admin_about_new_user(update, context, user.id)
+        access = replace(access, admin_notification_delivered=delivered)
     return access
 
 
@@ -76,7 +67,7 @@ async def require_access(
         return None
     if approved and not access.approved:
         if access.user.status == "pending":
-            await message.reply_text("Ты пока не одобрен. Я отправил заявку администратору.")
+            await message.reply_text(pending_access_message(access))
         else:
             await message.reply_text("Доступ не одобрен. Обратитесь к администратору.")
         return None
@@ -116,6 +107,55 @@ def pending_keyboard(pending_id: int) -> InlineKeyboardMarkup:
             ]
         ]
     )
+
+
+def pending_access_message(access: AccessContext) -> str:
+    if access.admin_notification_delivered is True:
+        return PENDING_ACCESS_SENT
+    if access.admin_notification_delivered is False:
+        return PENDING_ACCESS_ADMIN_UNREACHABLE
+    return PENDING_ACCESS_SAVED
+
+
+async def _notify_root_admin_about_new_user(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int
+) -> bool:
+    user = update.effective_user
+    if user is None:
+        return False
+    services = context.application.bot_data["services"]
+    keyboard = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("Viewer", callback_data=f"u:v:{user_id}"),
+                InlineKeyboardButton("Editor", callback_data=f"u:e:{user_id}"),
+            ],
+            [InlineKeyboardButton("Reject", callback_data=f"u:r:{user_id}")],
+        ]
+    )
+    try:
+        await context.bot.send_message(
+            services.config.telegram.admin_user_id,
+            f"Новая заявка: {html.escape(user.full_name)}\n"
+            f"ID: <code>{user_id}</code>\n"
+            f"Username: @{html.escape(user.username or '—')}",
+            reply_markup=keyboard,
+        )
+    except BadRequest as exc:
+        if "chat not found" in str(exc).lower():
+            logger.warning(
+                "Could not notify root admin %s about new user %s: Telegram chat not found. "
+                "Root admin must send /start to the bot first, or telegram.admin_user_id is wrong.",
+                services.config.telegram.admin_user_id,
+                user_id,
+            )
+            return False
+        logger.exception("Failed to notify root admin about a new user")
+        return False
+    except Exception:
+        logger.exception("Failed to notify root admin about a new user")
+        return False
+    return True
 
 
 def format_status_fields(fields: Sequence[object], title: str) -> str:

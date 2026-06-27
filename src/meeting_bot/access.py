@@ -22,6 +22,7 @@ class AccessContext:
     chat: Chat
     is_new_user: bool
     is_new_chat: bool
+    admin_notification_delivered: bool | None = None
 
     @property
     def approved(self) -> bool:

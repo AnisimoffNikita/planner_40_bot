@@ -6,6 +6,7 @@ import json
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from meeting_bot.card_service import DomainError
 from meeting_bot.handlers import update_wizard
 from meeting_bot.handlers.common import pending_keyboard, require_access
 from meeting_bot.llm_client import LlmUnavailable
@@ -103,11 +104,19 @@ async def process_natural_text(
         if not access.can_edit:
             await message.reply_text("У тебя доступ read-only; изменить карточку нельзя.")
             return
-        pending = await app.cards.create_pending(
-            user_id=access.user.telegram_user_id,
-            chat_id=access.chat.chat_id,
-            operations=result.patches,
-        )
+        try:
+            pending = await app.cards.create_pending(
+                user_id=access.user.telegram_user_id,
+                chat_id=access.chat.chat_id,
+                operations=result.patches,
+            )
+        except DomainError as exc:
+            await message.reply_text(
+                "Я понял запрос как изменение, но не смог безопасно подготовить preview: "
+                f"{html.escape(str(exc))}\n"
+                "Уточни блок, поле или конкретный элемент."
+            )
+            return
         sent = await message.reply_text(
             html.escape(pending.preview_text), reply_markup=pending_keyboard(pending.id)
         )
