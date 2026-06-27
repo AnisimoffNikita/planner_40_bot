@@ -13,6 +13,7 @@ from meeting_bot.handlers.common import (
     notify_root_admin_about_new_chat,
     pending_keyboard,
     require_access,
+    typing_indicator,
 )
 from meeting_bot.llm_client import LlmUnavailable
 
@@ -61,9 +62,12 @@ async def voice_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     if not access.can_use_llm:
         return
-    telegram_file = await context.bot.get_file(message.voice.file_id)
     try:
-        text = await services(context).voice.transcribe_telegram_voice(message.voice, telegram_file)
+        async with typing_indicator(update, context):
+            telegram_file = await context.bot.get_file(message.voice.file_id)
+            text = await services(context).voice.transcribe_telegram_voice(
+                message.voice, telegram_file
+            )
     except (ValueError, LlmUnavailable) as exc:
         await message.reply_text(html.escape(str(exc)))
         return
@@ -111,84 +115,85 @@ async def process_natural_text(
     app = services(context)
     if not access.can_use_llm:
         return
-    card = await app.cards.get_or_create_current()
-    clarification = await app.clarifications.consume(
-        access.user.telegram_user_id, access.chat.chat_id
-    )
-    clarification_context = None
-    if clarification is not None:
-        clarification_context = json.dumps(
-            {
-                "original_text": clarification.original_text,
-                "question": clarification.question,
-                "partial_patches": json.loads(clarification.context_json),
-            },
-            ensure_ascii=False,
+    async with typing_indicator(update, context):
+        card = await app.cards.get_or_create_current()
+        clarification = await app.clarifications.consume(
+            access.user.telegram_user_id, access.chat.chat_id
         )
-    try:
-        result = await app.llm.parse(
-            text=text,
-            schema=app.loaded_schema.schema,
-            card_data=app.cards.card_data(card),
-            role=access.llm_role,
-            clarification_context=clarification_context,
-        )
-    except LlmUnavailable as exc:
-        await message.reply_text(
-            f"{html.escape(str(exc))} Команды /status, /summary и /update продолжают работать."
-        )
-        return
-    if result.needs_clarification:
-        question = result.clarification_question or "Уточни, пожалуйста, запрос."
-        await app.clarifications.save(
-            access.user.telegram_user_id,
-            access.chat.chat_id,
-            text,
-            question,
-            result.patches,
-        )
-        await message.reply_text(html.escape(question))
-        return
-    if result.intent == "propose_update":
-        if not access.can_edit:
-            await message.reply_text("У тебя доступ read-only; изменить карточку нельзя.")
-            return
+        clarification_context = None
+        if clarification is not None:
+            clarification_context = json.dumps(
+                {
+                    "original_text": clarification.original_text,
+                    "question": clarification.question,
+                    "partial_patches": json.loads(clarification.context_json),
+                },
+                ensure_ascii=False,
+            )
         try:
-            pending = await app.cards.create_pending(
-                user_id=access.user.telegram_user_id,
-                chat_id=access.chat.chat_id,
-                operations=result.patches,
+            result = await app.llm.parse(
+                text=text,
+                schema=app.loaded_schema.schema,
+                card_data=app.cards.card_data(card),
+                role=access.llm_role,
+                clarification_context=clarification_context,
             )
-        except DomainError as exc:
+        except LlmUnavailable as exc:
             await message.reply_text(
-                "Я понял запрос как изменение, но не смог безопасно подготовить preview: "
-                f"{html.escape(str(exc))}\n"
-                "Уточни блок, поле или конкретный элемент."
+                f"{html.escape(str(exc))} Команды /status, /summary и /update продолжают работать."
             )
             return
-        sent = await message.reply_text(
-            html.escape(pending.preview_text), reply_markup=pending_keyboard(pending.id)
-        )
-        await app.set_pending_message_id(pending.id, sent.message_id)
-    elif result.intent == "show_status":
-        card_schema, fallback = await app.cards.schema_for_card(card)
-        path = app.pdf.build(
-            card,
-            card_schema,
-            app.cards.status_blocks(card, card_schema),
-            schema_fallback=fallback,
-        )
-        with path.open("rb") as document:
-            await message.reply_document(document, filename=path.name)
-    elif result.intent == "show_history":
-        cards = await app.cards.history()
-        await message.reply_text(
-            "\n".join(["Последние недели:"] + [f"• {item.week_start_date}" for item in cards])
-        )
-    elif result.answer:
-        await message.reply_text(html.escape(result.answer))
-    else:
-        await message.reply_text("Я не уверен, что именно нужно. Уточни запрос.")
+        if result.needs_clarification:
+            question = result.clarification_question or "Уточни, пожалуйста, запрос."
+            await app.clarifications.save(
+                access.user.telegram_user_id,
+                access.chat.chat_id,
+                text,
+                question,
+                result.patches,
+            )
+            await message.reply_text(html.escape(question))
+            return
+        if result.intent == "propose_update":
+            if not access.can_edit:
+                await message.reply_text("У тебя доступ read-only; изменить карточку нельзя.")
+                return
+            try:
+                pending = await app.cards.create_pending(
+                    user_id=access.user.telegram_user_id,
+                    chat_id=access.chat.chat_id,
+                    operations=result.patches,
+                )
+            except DomainError as exc:
+                await message.reply_text(
+                    "Я понял запрос как изменение, но не смог безопасно подготовить preview: "
+                    f"{html.escape(str(exc))}\n"
+                    "Уточни блок, поле или конкретный элемент."
+                )
+                return
+            sent = await message.reply_text(
+                html.escape(pending.preview_text), reply_markup=pending_keyboard(pending.id)
+            )
+            await app.set_pending_message_id(pending.id, sent.message_id)
+        elif result.intent == "show_status":
+            card_schema, fallback = await app.cards.schema_for_card(card)
+            path = app.pdf.build(
+                card,
+                card_schema,
+                app.cards.status_blocks(card, card_schema),
+                schema_fallback=fallback,
+            )
+            with path.open("rb") as document:
+                await message.reply_document(document, filename=path.name)
+        elif result.intent == "show_history":
+            cards = await app.cards.history()
+            await message.reply_text(
+                "\n".join(["Последние недели:"] + [f"• {item.week_start_date}" for item in cards])
+            )
+        elif result.answer:
+            await message.reply_text(html.escape(result.answer))
+        else:
+            await message.reply_text("Я не уверен, что именно нужно. Уточни запрос.")
 
 
 async def tagged_group_text(context: ContextTypes.DEFAULT_TYPE, text: str) -> str | None:

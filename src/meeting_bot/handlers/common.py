@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import asyncio
 import html
 import logging
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.constants import ChatAction
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
@@ -26,6 +29,39 @@ PENDING_CHAT_ADMIN_UNREACHABLE = (
     "Этот чат пока не одобрен. Администратор еще не открыл диалог с ботом или "
     "admin_user_id настроен неверно. Заявка сохранена."
 )
+
+
+@asynccontextmanager
+async def typing_indicator(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    *,
+    interval_seconds: float = 4.0,
+) -> AsyncIterator[None]:
+    chat = update.effective_chat
+    if chat is None:
+        yield
+        return
+
+    async def send_typing() -> None:
+        try:
+            await context.bot.send_chat_action(chat_id=chat.id, action=ChatAction.TYPING)
+        except Exception:
+            logger.debug("Failed to send Telegram typing chat action", exc_info=True)
+
+    async def refresh_typing() -> None:
+        while True:
+            await asyncio.sleep(interval_seconds)
+            await send_typing()
+
+    await send_typing()
+    task = asyncio.create_task(refresh_typing())
+    try:
+        yield
+    finally:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
 
 
 async def observe_access(

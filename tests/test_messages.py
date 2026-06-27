@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from telegram.constants import ChatAction
+
 from meeting_bot.access import AccessContext, AccessService
 from meeting_bot.domain import IntentResult, PatchOperation
 from meeting_bot.handlers import messages
@@ -59,6 +61,7 @@ class FakeBot:
     def __init__(self, username: str = "Planner40Bot") -> None:
         self.username = username
         self.messages: list[tuple[int, str]] = []
+        self.chat_actions: list[tuple[int, ChatAction]] = []
 
     async def get_file(self, file_id: str) -> object:
         return SimpleNamespace(file_id=file_id)
@@ -68,6 +71,9 @@ class FakeBot:
 
     async def send_message(self, *args: object, **kwargs: object) -> None:
         self.messages.append((int(args[0]), str(args[1])))
+
+    async def send_chat_action(self, *, chat_id: int, action: ChatAction) -> None:
+        self.chat_actions.append((chat_id, action))
 
 
 class FakeServices:
@@ -205,14 +211,16 @@ async def test_editor_natural_text_creates_pending_and_confirm_applies(
         llm=llm,
     )
     message = FakeMessage("спикер Иван Иванов")
+    context = context_with_services(services)
 
     await messages.process_natural_text(
         update_with_message(message),
-        context_with_services(services),
+        context,
         access,
         message.text or "",
     )
 
+    assert context.bot.chat_actions == [(2, ChatAction.TYPING)]
     assert "Предлагаемые изменения" in message.replies[0][0]
     assert "Спикер — Имя: Иван Иванов" in message.replies[0][0]
     assert llm.calls[0]["text"] == "спикер Иван Иванов"
@@ -247,14 +255,16 @@ async def test_viewer_natural_update_is_read_only(
         llm=llm,
     )
     message = FakeMessage("спикер Иван")
+    context = context_with_services(services)
 
     await messages.process_natural_text(
         update_with_message(message),
-        context_with_services(services),
+        context,
         access,
         message.text or "",
     )
 
+    assert context.bot.chat_actions == [(2, ChatAction.TYPING)]
     assert message.replies == [("У тебя доступ read-only; изменить карточку нельзя.", {})]
     assert await card_service.pending_for_user(2) == []
 
@@ -348,12 +358,14 @@ async def test_group_tagged_question_calls_llm_with_stripped_text(
         llm=llm,
     )
     message = FakeMessage("@Planner40Bot, кто главный спикер?")
+    context = context_with_services(services)
 
     await messages.text_message(
         update_with_message(message, user_id=42, chat_id=-100, chat_type="supergroup"),
-        context_with_services(services),
+        context,
     )
 
+    assert context.bot.chat_actions == [(-100, ChatAction.TYPING)]
     assert llm.calls[0]["text"] == "кто главный спикер?"
     assert llm.calls[0]["role"] == "viewer"
     assert message.replies == [("Главный спикер: Иван.", {})]
@@ -452,6 +464,7 @@ async def test_pending_group_chat_does_not_call_llm_and_notifies_admin(
         context,
     )
 
+    assert context.bot.chat_actions == []
     assert "Этот чат пока не одобрен" in message.replies[0][0]
     assert llm.calls == []
     assert context.bot.messages[0][0] == app_config.telegram.admin_user_id
@@ -488,12 +501,14 @@ async def test_blocked_user_in_group_does_not_call_llm(
         llm=llm,
     )
     message = FakeMessage("@Planner40Bot кто главный спикер?")
+    context = context_with_services(services)
 
     await messages.text_message(
         update_with_message(message, user_id=42, chat_id=-100, chat_type="supergroup"),
-        context_with_services(services),
+        context,
     )
 
+    assert context.bot.chat_actions == []
     assert message.replies == [("Доступ заблокирован. Обратитесь к администратору.", {})]
     assert llm.calls == []
 
@@ -559,12 +574,14 @@ async def test_voice_message_reuses_natural_text_flow(
         voice=FakeVoice("спикер Иван Иванов"),
     )
     message = FakeMessage(voice=SimpleNamespace(file_id="voice-1", file_size=100))
+    context = context_with_services(services)
 
     await messages.voice_message(
         update_with_message(message),
-        context_with_services(services),
+        context,
     )
 
+    assert context.bot.chat_actions == [(2, ChatAction.TYPING), (2, ChatAction.TYPING)]
     assert "Я распознал" in message.replies[0][0]
     assert llm.calls[0]["text"] == "спикер Иван Иванов"
     assert "Предлагаемые изменения" in message.replies[1][0]
