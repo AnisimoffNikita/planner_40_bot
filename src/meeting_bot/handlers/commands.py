@@ -6,7 +6,6 @@ import re
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
-from meeting_bot.domain import PatchOperation
 from meeting_bot.handlers.common import (
     format_status_fields,
     pending_keyboard,
@@ -14,12 +13,6 @@ from meeting_bot.handlers.common import (
     send_long,
 )
 
-SET_PATTERN = re.compile(
-    r"^(?P<block>[A-Za-z][\w-]*)(?:\[(?P<entry>[^\]]+)\])?\."
-    r"(?P<field>[A-Za-z][\w-]*)\s+(?P<value>.+)$",
-    re.DOTALL,
-)
-DELETE_PATTERN = re.compile(r"^(?P<block>[A-Za-z][\w-]*)\[(?P<entry>[^\]]+)\]$")
 HISTORY_PATTERN = re.compile(r"^(?P<year>\d{4})-(?P<week>\d{2})$")
 
 
@@ -62,10 +55,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if access.can_edit:
         base += (
             "\n\n<b>Изменения</b>\n"
-            "/set block.field значение\n"
-            "/set block[entry_id].field значение\n"
-            "/add block название\n"
-            "/delete block[entry_id]\n"
+            "/update — обновить карточку кнопками\n"
             "/pending — ожидающие подтверждения\n"
             "/cancel ID — отменить предложение"
         )
@@ -177,89 +167,6 @@ async def schema_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         for block in loaded.schema.blocks
     )
     await send_long(update.effective_message, "\n".join(lines))
-
-
-async def set_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    access = await require_access(update, context, editable=True, command="set")
-    if access is None:
-        return
-    raw = " ".join(context.args)
-    match = SET_PATTERN.fullmatch(raw)
-    if match is None:
-        await update.effective_message.reply_text(
-            "Формат: /set block.field значение или /set block[entry_id].field значение"
-        )
-        return
-    operation = PatchOperation(
-        op="set_field",
-        block_id=match.group("block"),
-        entry_id=match.group("entry"),
-        field_id=match.group("field"),
-        value=match.group("value"),
-        human_label=match.group("field"),
-    )
-    pending = await services(context).cards.create_pending(
-        user_id=access.user.telegram_user_id,
-        chat_id=access.chat.chat_id,
-        operations=[operation],
-    )
-    sent = await update.effective_message.reply_text(
-        html.escape(pending.preview_text), reply_markup=pending_keyboard(pending.id)
-    )
-    await services(context).set_pending_message_id(pending.id, sent.message_id)
-
-
-async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    access = await require_access(update, context, editable=True, command="add")
-    if access is None:
-        return
-    if len(context.args) < 2:
-        await update.effective_message.reply_text("Формат: /add block_id название")
-        return
-    block_id, title = context.args[0], " ".join(context.args[1:])
-    pending = await services(context).cards.create_pending(
-        user_id=access.user.telegram_user_id,
-        chat_id=access.chat.chat_id,
-        operations=[
-            PatchOperation(
-                op="add_entry",
-                block_id=block_id,
-                value=title,
-                human_label=title,
-            )
-        ],
-    )
-    sent = await update.effective_message.reply_text(
-        html.escape(pending.preview_text), reply_markup=pending_keyboard(pending.id)
-    )
-    await services(context).set_pending_message_id(pending.id, sent.message_id)
-
-
-async def delete_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    access = await require_access(update, context, editable=True, command="delete")
-    if access is None:
-        return
-    raw = " ".join(context.args)
-    match = DELETE_PATTERN.fullmatch(raw)
-    if match is None:
-        await update.effective_message.reply_text("Формат: /delete block[entry_id]")
-        return
-    pending = await services(context).cards.create_pending(
-        user_id=access.user.telegram_user_id,
-        chat_id=access.chat.chat_id,
-        operations=[
-            PatchOperation(
-                op="delete_entry",
-                block_id=match.group("block"),
-                entry_id=match.group("entry"),
-                human_label=match.group("entry"),
-            )
-        ],
-    )
-    sent = await update.effective_message.reply_text(
-        html.escape(pending.preview_text), reply_markup=pending_keyboard(pending.id)
-    )
-    await services(context).set_pending_message_id(pending.id, sent.message_id)
 
 
 async def pending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

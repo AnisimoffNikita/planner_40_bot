@@ -6,6 +6,7 @@ import json
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from meeting_bot.handlers import update_wizard
 from meeting_bot.handlers.common import pending_keyboard, require_access
 from meeting_bot.llm_client import LlmUnavailable
 
@@ -21,6 +22,8 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
     if access.chat.chat_type != "private":
         await message.reply_text("В группе доступны только /status, /summary и /help.")
+        return
+    if await update_wizard.try_handle_text_input(update, context, access, message.text):
         return
     await process_natural_text(update, context, access, message.text)
 
@@ -43,6 +46,8 @@ async def voice_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
     shown = text if len(text) <= 500 else text[:497] + "..."
     await message.reply_text(f"Я распознал: <i>{html.escape(shown)}</i>")
+    if await update_wizard.try_handle_text_input(update, context, access, text):
+        return
     await process_natural_text(update, context, access, text)
 
 
@@ -80,7 +85,7 @@ async def process_natural_text(
         )
     except LlmUnavailable as exc:
         await message.reply_text(
-            f"{html.escape(str(exc))} Команды /status, /summary и /set продолжают работать."
+            f"{html.escape(str(exc))} Команды /status, /summary и /update продолжают работать."
         )
         return
     if result.needs_clarification:

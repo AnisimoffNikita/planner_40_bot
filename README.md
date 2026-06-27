@@ -90,15 +90,13 @@ Viewer/Editor/Reject. До approval и после block ни текст, ни г
 
 - `/start`, `/help`, `/whoami`
 - `/status`, `/summary`, `/history [YYYY-WW]`, `/schema`
-- `/set block.field value`
-- `/set block[entry_id].field value`
-- `/add block title`, `/delete block[entry_id]`
+- `/update` — кнопочный интерфейс обновления карточки
 - `/pending`, `/cancel ID`
 - admin: `/users`, `/approve ID viewer|editor`, `/reject ID`,
   `/block_user ID`, `/unblock_user ID`, `/block_chat ID`,
   `/unblock_chat ID`, `/audit [limit]`
 
-Командные, natural-language и voice изменения всегда создают `pending_changes`.
+Кнопочные, natural-language и voice изменения всегда создают `pending_changes`.
 Карточка меняется только после кнопки `✅ Применить`. Подтверждение проверяет
 автора, срок жизни 24 часа, неделю и revision карточки.
 
@@ -128,7 +126,7 @@ docker compose --profile test run --rm meeting-bot-test
 
 1. Запустить бота с реальными ключами и написать `/start` от root-admin.
 2. Написать от нового пользователя, одобрить его как editor.
-3. Проверить `/set`, отмену и применение preview.
+3. Проверить `/update`, отмену и применение preview.
 4. Отправить вопрос и voice в личке.
 5. Добавить бота в группу и убедиться, что изменение запрещено, а `/summary`
    работает.

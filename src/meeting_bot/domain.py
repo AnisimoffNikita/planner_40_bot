@@ -28,7 +28,7 @@ class ChatStatus(StrEnum):
 class PatchOperation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    op: Literal["set_field", "add_entry", "delete_entry"]
+    op: Literal["set_field", "add_entry", "delete_entry", "clear_field", "clear_block"]
     block_id: str
     entry_id: str | None = None
     field_id: str | None = None
@@ -39,6 +39,8 @@ class PatchOperation(BaseModel):
     def validate_shape(self) -> PatchOperation:
         if self.op == "set_field" and self.field_id is None:
             raise ValueError("set_field requires field_id")
+        if self.op == "clear_field" and self.field_id is None:
+            raise ValueError("clear_field requires field_id")
         if self.op == "delete_entry" and self.entry_id is None:
             raise ValueError("delete_entry requires entry_id")
         return self

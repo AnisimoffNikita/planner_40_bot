@@ -166,6 +166,76 @@ async def test_blocked_editor_cannot_confirm(card_service, database, app_config)
         await card_service.resolve_pending(pending.id, 2, approve=True)
 
 
+async def test_clear_field_and_clear_block_wait_for_confirm(
+    card_service, database, app_config
+) -> None:
+    await approve_editor(database, app_config)
+    await card_service.get_or_create_current()
+    seed = await card_service.create_pending(
+        user_id=2,
+        chat_id=2,
+        operations=[
+            PatchOperation(op="set_field", block_id="speaker", field_id="name", value="Иван"),
+            PatchOperation(op="set_field", block_id="speaker", field_id="slides", value="Да"),
+        ],
+    )
+    await card_service.resolve_pending(seed.id, 2, approve=True)
+
+    clear_field = await card_service.create_pending(
+        user_id=2,
+        chat_id=2,
+        operations=[PatchOperation(op="clear_field", block_id="speaker", field_id="name")],
+    )
+    before = await card_service.get_or_create_current()
+    assert card_service.card_data(before)["blocks"]["speaker"]["fields"]["name"] == "Иван"
+    await card_service.resolve_pending(clear_field.id, 2, approve=True)
+    after_field = await card_service.get_or_create_current()
+    fields = card_service.card_data(after_field)["blocks"]["speaker"]["fields"]
+    assert "name" not in fields
+    assert fields["slides"] == "Да"
+
+    clear_block = await card_service.create_pending(
+        user_id=2,
+        chat_id=2,
+        operations=[PatchOperation(op="clear_block", block_id="speaker")],
+    )
+    assert card_service.card_data(after_field)["blocks"]["speaker"]["fields"]["slides"] == "Да"
+    await card_service.resolve_pending(clear_block.id, 2, approve=True)
+    after_block = await card_service.get_or_create_current()
+    assert card_service.card_data(after_block)["blocks"]["speaker"]["fields"] == {}
+
+
+async def test_multiple_preview_uses_entry_title_not_uuid(
+    card_service, database, app_config
+) -> None:
+    await approve_editor(database, app_config)
+    await card_service.get_or_create_current()
+    added = await card_service.create_pending(
+        user_id=2,
+        chat_id=2,
+        operations=[PatchOperation(op="add_entry", block_id="announcements", value="Лагерь")],
+    )
+    await card_service.resolve_pending(added.id, 2, approve=True)
+    entry_id = json.loads(added.patch_json)[0]["entry_id"]
+
+    pending = await card_service.create_pending(
+        user_id=2,
+        chat_id=2,
+        operations=[
+            PatchOperation(
+                op="set_field",
+                block_id="announcements",
+                entry_id=entry_id,
+                field_id="approved",
+                value="Не требуется",
+            )
+        ],
+    )
+
+    assert "Объявления / Лагерь — Согласовано: Не требуется" in pending.preview_text
+    assert entry_id not in pending.preview_text
+
+
 async def test_week_rollover_archives_and_rebinds_schema(
     card_service, database, app_config
 ) -> None:

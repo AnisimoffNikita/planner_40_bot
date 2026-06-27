@@ -374,12 +374,57 @@ class CardService:
                     operation.entry_id = candidates[0]
                 if not block.multiple and operation.entry_id is not None:
                     raise DomainError(f"Блок {block.id} не принимает entry_id.")
+            elif operation.op == "clear_field":
+                if operation.field_id not in block.fields:
+                    raise DomainError(
+                        f"Я не нашел поле {block.id}.{operation.field_id} в текущей схеме."
+                    )
+                if block.multiple and operation.entry_id is None:
+                    raise DomainError(
+                        f"Этот блок повторяемый, нужно выбрать конкретный экземпляр {block.id}."
+                    )
+                if not block.multiple and operation.entry_id is not None:
+                    raise DomainError(f"Блок {block.id} не принимает entry_id.")
+            elif operation.op == "clear_block":
+                if block.multiple:
+                    raise DomainError(
+                        f"Повторяемый блок {block.id} можно удалить только по экземпляру."
+                    )
+                operation.entry_id = None
+                operation.field_id = None
+                operation.value = None
             elif operation.op == "delete_entry":
                 if not block.multiple:
                     raise DomainError(f"Блок {block.id} не является повторяемым.")
+            if block.multiple and operation.entry_id and not operation.human_label:
+                operation.human_label = self._entry_title(data, block.id, operation.entry_id)
             self._apply_operation(data, operation, block)
             normalized.append(operation)
         return normalized
+
+    def _entry_title(self, data: dict[str, Any], block_id: str, entry_id: str) -> str:
+        blocks = data.get("blocks", {})
+        if not isinstance(blocks, dict):
+            return "Без названия"
+        entries = blocks.get(block_id, [])
+        if not isinstance(entries, list):
+            return "Без названия"
+        for entry in entries:
+            if not isinstance(entry, dict) or str(entry.get("entry_id", "")) != entry_id:
+                continue
+            title = entry.get("title")
+            if isinstance(title, str) and title.strip():
+                return title.strip()
+            fields = entry.get("fields")
+            if isinstance(fields, dict):
+                for key in ("title", "topic", "name", "block_type"):
+                    value = fields.get(key)
+                    if isinstance(value, str) and value.strip():
+                        return value.strip()
+                for value in fields.values():
+                    if isinstance(value, str) and value.strip():
+                        return value.strip()
+        return "Без названия"
 
     def _apply_operation(
         self, data: dict[str, Any], operation: PatchOperation, block: BlockSpec
@@ -406,13 +451,25 @@ class CardService:
                 raise DomainError(f"Я не нашел экземпляр {block.id}[{operation.entry_id}].")
             if operation.op == "delete_entry":
                 entries.remove(entry)
+            elif operation.op == "clear_field":
+                if operation.field_id is None:
+                    raise DomainError("clear_field requires field_id")
+                fields = entry.setdefault("fields", {})
+                fields.pop(operation.field_id, None)
             else:
                 entry.setdefault("fields", {})[operation.field_id] = operation.value
         else:
             stored = blocks.setdefault(block.id, {"fields": {}})
             if not isinstance(stored, dict):
                 raise DomainError(f"Данные блока {block.id} повреждены.")
-            stored.setdefault("fields", {})[operation.field_id] = operation.value
+            if operation.op == "clear_block":
+                stored["fields"] = {}
+            elif operation.op == "clear_field":
+                if operation.field_id is None:
+                    raise DomainError("clear_field requires field_id")
+                stored.setdefault("fields", {}).pop(operation.field_id, None)
+            else:
+                stored.setdefault("fields", {})[operation.field_id] = operation.value
 
     def preview(self, operations: list[PatchOperation]) -> str:
         lines = ["Предлагаемые изменения:"]
@@ -421,11 +478,24 @@ class CardService:
             if operation.op == "add_entry":
                 lines.append(f"• Добавить «{operation.value}» в «{block.title}»")
             elif operation.op == "delete_entry":
-                lines.append(f"• Удалить экземпляр {operation.entry_id} из «{block.title}»")
+                label = operation.human_label or operation.entry_id or ""
+                lines.append(f"• Удалить «{label}» из «{block.title}»")
+            elif operation.op == "clear_block":
+                lines.append(f"• Очистить «{block.title}»")
+            elif operation.op == "clear_field":
+                field = block.fields[operation.field_id or ""]
+                prefix = block.title
+                if operation.entry_id:
+                    label = operation.human_label or operation.entry_id
+                    prefix = f"{block.title} / {label}"
+                lines.append(f"• Очистить {prefix} — {field.label}")
             else:
                 field = block.fields[operation.field_id or ""]
-                suffix = f" [{operation.entry_id}]" if operation.entry_id else ""
-                lines.append(f"• {block.title}{suffix} — {field.label}: {operation.value}")
+                prefix = block.title
+                if operation.entry_id:
+                    label = operation.human_label or operation.entry_id
+                    prefix = f"{block.title} / {label}"
+                lines.append(f"• {prefix} — {field.label}: {operation.value}")
         lines.append("\nДанные изменятся только после подтверждения.")
         return "\n".join(lines)
 
