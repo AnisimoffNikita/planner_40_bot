@@ -5,6 +5,7 @@ import html
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from meeting_bot.command_catalog import sync_user_command_menu
 from meeting_bot.handlers.common import require_access, send_long
 
 
@@ -51,6 +52,7 @@ async def approve_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         status="approved",
         role=context.args[1],
     )
+    await sync_user_command_menu(context.bot, user)
     await update.effective_message.reply_text(f"Пользователь {user.telegram_user_id} одобрен.")
     await context.bot.send_message(user.telegram_user_id, f"Доступ одобрен. Роль: {user.role}.")
 
@@ -79,6 +81,7 @@ async def _user_status_command(
     user = await services(context).access.decide_user(
         access.user.telegram_user_id, int(context.args[0]), status=status
     )
+    await sync_user_command_menu(context.bot, user)
     await update.effective_message.reply_text(
         f"Пользователь {user.telegram_user_id}: {user.status}."
     )

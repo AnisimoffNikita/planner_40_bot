@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from telegram import BotCommand, Update
+from telegram import Update
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -17,6 +17,7 @@ from telegram.ext import (
 
 from meeting_bot.access import AccessService
 from meeting_bot.card_service import CardService, DomainError
+from meeting_bot.command_catalog import sync_all_command_menus
 from meeting_bot.config import AppConfig
 from meeting_bot.handlers import admin, callbacks, commands, messages, update_wizard
 from meeting_bot.intent_parser import ClarificationService
@@ -78,20 +79,7 @@ async def _post_init(application: Application) -> None:
     await services.database.initialize()
     await services.access.ensure_root_admin()
     await services.cards.get_or_create_current()
-    await application.bot.set_my_commands(
-        [
-            BotCommand("start", "Регистрация и статус доступа"),
-            BotCommand("help", "Помощь"),
-            BotCommand("whoami", "Роль и статус"),
-            BotCommand("status", "PDF текущей карточки"),
-            BotCommand("summary", "Краткий статус"),
-            BotCommand("history", "Архив карточек"),
-            BotCommand("schema", "Текущая схема"),
-            BotCommand("update", "Обновить карточку кнопками"),
-            BotCommand("pending", "Мои предложения"),
-            BotCommand("cancel", "Отменить предложение"),
-        ]
-    )
+    await sync_all_command_menus(application.bot, await services.access.users())
     if services.config.notifications.enabled and application.job_queue is not None:
         application.job_queue.run_repeating(
             _notification_job,

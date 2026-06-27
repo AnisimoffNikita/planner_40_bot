@@ -160,7 +160,14 @@ async def _notify_root_admin_about_new_user(
 
 def format_status_fields(fields: Sequence[object], title: str) -> str:
     lines = [title]
+    grouped: dict[str, list[str]] = {}
     for field in fields:
-        value = field.evaluation.value or "не заполнено"
-        lines.append(f"• {field.block_title} — {field.field_label}: {value}")
+        entry_title = getattr(field, "entry_title", None)
+        group_title = str(field.block_title)
+        if entry_title:
+            group_title = f"{group_title} — {entry_title}"
+        grouped.setdefault(group_title, []).append(str(field.field_label))
+    for group_title, labels in grouped.items():
+        lines.extend(["", html.escape(group_title)])
+        lines.extend(f"- {html.escape(label)}" for label in labels)
     return "\n".join(lines)

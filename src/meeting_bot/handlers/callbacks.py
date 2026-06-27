@@ -6,6 +6,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from meeting_bot.card_service import DomainError, StaleChange
+from meeting_bot.command_catalog import sync_user_command_menu
 from meeting_bot.handlers.common import require_access
 from meeting_bot.handlers.update_wizard import wizard_keyboard
 
@@ -90,6 +91,7 @@ async def user_approval_callback(update: Update, context: ContextTypes.DEFAULT_T
             role=role,
         )
         text = f"Доступ одобрен: {role}."
+    await sync_user_command_menu(context.bot, user)
     await query.edit_message_text(
         f"Пользователь <code>{target_id}</code>\nРешение: {html.escape(user.status)}"
     )

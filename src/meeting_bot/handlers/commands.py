@@ -6,6 +6,7 @@ import re
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
+from meeting_bot.command_catalog import command_specs_for_chat, help_text
 from meeting_bot.domain import UserStatus
 from meeting_bot.handlers.common import (
     format_status_fields,
@@ -52,32 +53,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    access = await require_access(update, context, command="help")
+    access = await require_access(update, context, approved=False, command="help")
     if access is None:
         return
-    base = (
-        "<b>Команды</b>\n"
-        "/whoami — роль и статус\n"
-        "/status — PDF текущей карточки\n"
-        "/summary — краткий статус\n"
-        "/history [YYYY-WW] — архив\n"
-        "/schema — версия и блоки"
+    if access.blocked:
+        return
+    specs = command_specs_for_chat(
+        access.chat.chat_type,
+        access.user.role,
+        access.user.status,
     )
-    if access.can_edit:
-        base += (
-            "\n\n<b>Изменения</b>\n"
-            "/update — обновить карточку кнопками\n"
-            "/pending — ожидающие подтверждения\n"
-            "/cancel ID — отменить предложение"
-        )
-    if access.user.role == "admin":
-        base += (
-            "\n\n<b>Администрирование</b>\n"
-            "/users, /approve ID viewer|editor, /reject ID\n"
-            "/block_user ID, /unblock_user ID\n"
-            "/block_chat ID, /unblock_chat ID, /audit [limit]"
-        )
-    await update.effective_message.reply_text(base)
+    await update.effective_message.reply_text(help_text(specs))
 
 
 async def whoami(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -1112,18 +1112,6 @@ blocks:
   title: Второе пожертвование перед проповедью
   type: optional
   fields:
-    exists:
-      label: Есть ли второе пожертвование
-      allowed_values:
-      - Да
-      - Нет
-      ready_if:
-      - Да
-      - Нет
-      deadline:
-        day: 3
-        hour: 10
-        minute: 0
     leader:
       label: Кто проводит
       allowed_values:
